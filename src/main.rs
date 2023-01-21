@@ -1,6 +1,9 @@
 extern crate nalgebra as na;
+use memmap::Mmap;
 use rand::prelude::*;
 use std::collections::HashMap;
+use std::fs;
+use std::io::{Error, Write};
 
 struct Galaxy {
     dimensions: (usize, usize),
@@ -51,7 +54,7 @@ impl Galaxy {
                 let x = random::<usize>() % self.dimensions.0;
                 let y = random::<usize>() % self.dimensions.1;
                 let star = Star {
-                    name: String::from("Sol"),
+                    name: random_name(load_names().unwrap().as_ref()),
                     planets: Vec::new(),
                     location: (x, y),
                 };
@@ -102,6 +105,40 @@ impl Star {
 }
 
 struct Planet {}
+
+fn random_name(names: &Vec<String>) -> String {
+    let strategy = random::<u8>() % 2;
+    match strategy {
+        0 => random_name_default(names),
+        1 => random_name_mixed(names),
+        _ => panic!("Invalid strategy"),
+    }
+}
+
+fn random_name_default(names: &Vec<String>) -> String {
+    let index = random::<usize>() % names.len();
+    names[index].clone()
+}
+
+fn random_name_mixed(names: &Vec<String>) -> String {
+    let index1 = random::<usize>() % names.len();
+    let name1: Vec<char> = names[index1].clone().chars().collect::<Vec<_>>();
+    let index2 = random::<usize>() % names.len();
+    let name2: Vec<char> = names[index2].clone().chars().collect::<Vec<_>>();
+    let number: u32 = random::<u32>() % 9999;
+    let number_chars: Vec<char> = number.to_string().chars().collect::<Vec<_>>();
+    name1[..name1.len() / 2]
+        .iter()
+        .chain(name2[name2.len() / 2..].iter())
+        .chain(number_chars.iter())
+        .collect::<String>()
+}
+
+fn load_names() -> Result<Vec<String>, Error> {
+    let contents: String = fs::read_to_string("names.csv")?;
+    let names: Vec<String> = contents.split("\n").map(|s| s.to_string()).collect();
+    Ok(names)
+}
 
 fn main() {
     // Create a new galaxy
