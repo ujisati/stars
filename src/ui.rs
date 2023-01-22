@@ -429,7 +429,7 @@ where
     f.render_widget(table, chunks[0]);
 }
 
-fn draw_fourth_tab<B>(f: &mut Frame<B>, _app: &mut App, area: Rect)
+fn draw_fourth_tab<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
@@ -439,9 +439,33 @@ where
         .split(area);
     let block = Block::default().borders(Borders::ALL).title("Block");
     f.render_widget(block, chunks[0]);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Block")
-        .style(Style::default().bg(Color::Red));
+    let block = Block::default().borders(Borders::ALL).title("Block");
     f.render_widget(block, chunks[1]);
+
+    // Draw tasks
+    let tasks: Vec<ListItem> = app
+        .tasks
+        .items
+        .iter()
+        .map(|i| ListItem::new(vec![Spans::from(Span::raw(*i))]))
+        .collect();
+    let tasks = List::new(tasks)
+        .block(Block::default().borders(Borders::ALL).title("List"))
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+        .highlight_symbol("> ");
+    f.render_stateful_widget(tasks, chunks[0], &mut app.tasks.state);
+    // if "View My Stars" is selected, draw the list of all stars in galaxy
+    if app.tasks.state.selected().unwrap_or(1) == 1 {
+        let stars: Vec<ListItem> = app
+            .galaxy
+            .stars
+            .iter()
+            .map(|i| ListItem::new(vec![Spans::from(Span::raw(i.name.clone()))]))
+            .collect();
+        let stars = List::new(stars)
+            .block(Block::default().borders(Borders::ALL).title("Stars"))
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol("> ");
+        f.render_widget(stars, chunks[1]);
+    }
 }
