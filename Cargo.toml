@@ -6,6 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argh = "0.1.10"
+crossterm = "0.25.0"
 memmap = "0.7.0"
 nalgebra = "0.32.1"
 rand = "0.8.5"
+termion = "2.0.1"
+tui = "0.19.0"

@@ -1,153 +1,27 @@
-extern crate nalgebra as na;
-use memmap::Mmap;
-use rand::prelude::*;
-use std::collections::HashMap;
-use std::fs;
-use std::io::{Error, Write};
+mod app;
+mod crossterm;
+mod game;
+mod ui;
+mod utils;
 
-struct Galaxy {
-    dimensions: (usize, usize),
-    stars: Vec<Star>,
-    star_matrix: na::SMatrix<usize, 100, 100>,
-    distances: HashMap<usize, Vec<(usize, f32)>>,
-    total_stars: usize,
+use crate::crossterm::run;
+use argh::FromArgs;
+use std::{error::Error, time::Duration};
+
+/// Demo
+#[derive(Debug, FromArgs)]
+struct Cli {
+    /// time in ms between two ticks.
+    #[argh(option, default = "250")]
+    tick_rate: u64,
+    /// whether unicode symbols are used to improve the overall look of the app
+    #[argh(option, default = "true")]
+    enhanced_graphics: bool,
 }
 
-impl Galaxy {
-    fn new() -> Self {
-        Galaxy {
-            dimensions: (100 as usize, 100 as usize),
-            stars: Vec::new(),
-            star_matrix: na::SMatrix::<usize, 100, 100>::zeros(),
-            distances: HashMap::new(),
-            total_stars: 100 * 100 / 10,
-        }
-    }
-
-    fn add_star(&mut self, star: Star, index: usize) -> Result<(), &str> {
-        // Check if the star is already in the matrix
-        // If it is, throw an error
-        if self.star_matrix[(star.location.0, star.location.1)] != 0 {
-            println!(
-                "Star already exists at location ({}, {})",
-                star.location.0, star.location.1
-            );
-            return Err("Star already exists at location");
-        }
-        self.star_matrix[(star.location.0, star.location.1)] = index;
-        println!(
-            "Star {} added at location ({}, {})",
-            star.name, star.location.0, star.location.1
-        );
-        self.stars.push(star);
-        Ok(())
-    }
-
-    fn get_star_index(&self, star: &Star) -> usize {
-        self.star_matrix[(star.location.0, star.location.1)]
-    }
-
-    fn populate_default(&mut self) {
-        for i in 0..self.total_stars {
-            let mut valid_location = false;
-            while !valid_location {
-                let x = random::<usize>() % self.dimensions.0;
-                let y = random::<usize>() % self.dimensions.1;
-                let star = Star {
-                    name: random_name(load_names().unwrap().as_ref()),
-                    planets: Vec::new(),
-                    location: (x, y),
-                };
-                valid_location = match self.add_star(star, i) {
-                    Ok(_) => true,
-                    Err(_) => false,
-                };
-            }
-        }
-        self.calculcate_all_distances();
-        println!("Galaxy populated with {} stars", self.total_stars);
-    }
-
-    fn calculcate_all_distances(&mut self) {
-        //iterate over all stars references
-        for (i, star) in self.stars.iter().enumerate() {
-            let mut distances_to = Vec::new();
-            for other_star in self.stars.iter() {
-                let distance = Star::distance_between(star, other_star);
-                let star_and_distance = (self.get_star_index(other_star), distance);
-                distances_to.push(star_and_distance);
-            }
-            distances_to.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-            self.distances.insert(i, distances_to);
-        }
-    }
-}
-
-struct Star {
-    name: String,
-    planets: Vec<Planet>,
-    location: (usize, usize),
-}
-
-impl Star {
-    fn distance_between(star1: &Star, star2: &Star) -> f32 {
-        let x1 = star1.location.0 as f32;
-        let y1 = star1.location.1 as f32;
-        let x2 = star2.location.0 as f32;
-        let y2 = star2.location.1 as f32;
-        let distance = ((x1 - y1).powi(2) + (x2 - y2).powi(2)).sqrt();
-        println!(
-            "Distance between {} and {} is {}",
-            star1.name, star2.name, distance
-        );
-        distance
-    }
-}
-
-struct Planet {}
-
-fn random_name(names: &Vec<String>) -> String {
-    let strategy = random::<u8>() % 2;
-    match strategy {
-        0 => random_name_default(names),
-        1 => random_name_mixed(names),
-        _ => panic!("Invalid strategy"),
-    }
-}
-
-fn random_name_default(names: &Vec<String>) -> String {
-    let index = random::<usize>() % names.len();
-    names[index].clone()
-}
-
-fn random_name_mixed(names: &Vec<String>) -> String {
-    let index1 = random::<usize>() % names.len();
-    let name1: Vec<char> = names[index1].clone().chars().collect::<Vec<_>>();
-    let index2 = random::<usize>() % names.len();
-    let name2: Vec<char> = names[index2].clone().chars().collect::<Vec<_>>();
-    let number: u32 = random::<u32>() % 9999;
-    let number_chars: Vec<char> = number.to_string().chars().collect::<Vec<_>>();
-    name1[..name1.len() / 2]
-        .iter()
-        .chain(name2[name2.len() / 2..].iter())
-        .chain(number_chars.iter())
-        .collect::<String>()
-}
-
-fn load_names() -> Result<Vec<String>, Error> {
-    let contents: String = fs::read_to_string("names.csv")?;
-    let names: Vec<String> = contents.split("\n").map(|s| s.to_string()).collect();
-    Ok(names)
-}
-
-fn main() {
-    // Create a new galaxy
-    let mut galaxy = Galaxy::new();
-    galaxy.populate_default();
-
-    // Find the distance between two total_stars
-    let star1 = &galaxy.stars[0];
-    let star2 = &galaxy.stars[1];
-    let distance = Star::distance_between(star1, star2);
-    println!("Distances {:?}", galaxy.distances[&0]);
+fn main() -> Result<(), Box<dyn Error>> {
+    let cli: Cli = argh::from_env();
+    let tick_rate = Duration::from_millis(cli.tick_rate);
+    run(tick_rate, cli.enhanced_graphics)?;
+    Ok(())
 }
