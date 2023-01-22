@@ -8,29 +8,85 @@ use std::fs;
 use std::io::{Error, Write};
 use std::{collections::HashMap, fmt::Display};
 
-pub struct Game<'a> {
-    pub galaxy: Galaxy<'a>,
+pub struct Game {
+    pub galaxy: Galaxy,
+    pub players: Vec<Player>,
     pub turn: u32,
-    pub players: Vec<Player<'a>>,
+    pub game_over: bool,
+    pub units: Vec<Unit>,
+}
+
+impl Game {
+    pub fn new(players: Vec<String>) -> Self {
+        let mut galaxy = Galaxy::new();
+        galaxy.populate_default();
+        let players = players
+            .iter()
+            .map(|player| Player {
+                name: player.clone(),
+            })
+            .collect();
+
+        let mut game = Game {
+            galaxy,
+            players,
+            turn: 0,
+            game_over: false,
+            units: Vec::new(),
+        };
+        game
+    }
+
+    pub fn set_players_start(&mut self) {
+        let mut units = Vec::new();
+        for player in &self.players {
+            let planet = self.galaxy.random_unoccupied_planet();
+            let unit = Unit {
+                player: player.name.clone(),
+                location: planet.location,
+                size: 1,
+            };
+            units.push(unit);
+        }
+        self.units = units;
+    }
+
+    pub fn get_players_units(&self, player: &Player) -> Vec<&Unit> {
+        let mut units = Vec::new();
+        for unit in &self.units {
+            if unit.player == player.name {
+                units.push(unit)
+            }
+        }
+        units
+    }
+
+    pub fn get_players_stars(&self, player: &Player) -> Vec<&Star> {
+        let mut stars = Vec::new();
+        for unit in self.get_players_units(player) {
+            stars.push(self.galaxy.get_star_from_loc(unit.location))
+        }
+        stars
+    }
 }
 
 #[derive(Debug)]
-pub struct Galaxy<'a> {
+pub struct Galaxy {
     pub dimensions: (usize, usize),
-    pub stars: Vec<Star<'a>>,
+    pub stars: Vec<Star>,
     pub star_matrix: na::SMatrix<usize, 100, 100>,
     pub distances: HashMap<usize, Vec<(usize, u32)>>,
     pub total_stars: usize,
 }
 
-impl<'a> Galaxy<'a> {
+impl Galaxy {
     pub fn new() -> Self {
         Galaxy {
             dimensions: (100 as usize, 100 as usize),
             stars: Vec::new(),
             star_matrix: na::SMatrix::<usize, 100, 100>::zeros(),
             distances: HashMap::new(),
-            total_stars: 100 * 100 / 1000,
+            total_stars: 100 * 100 / 100,
         }
     }
 
@@ -45,7 +101,12 @@ impl<'a> Galaxy<'a> {
         }
     }
 
-    fn add_star(&mut self, star: Star<'a>, index: usize) -> Result<(), &str> {
+    pub fn get_star_from_loc(&self, location: (usize, usize)) -> &Star {
+        let index = self.star_matrix[(location.0, location.1)];
+        &self.stars[index]
+    }
+
+    fn add_star(&mut self, star: Star, index: usize) -> Result<(), &str> {
         // Check if the star is already in the matrix
         // If it is, throw an error
         if self.star_matrix[(star.location.0, star.location.1)] != 0 {
@@ -87,7 +148,7 @@ impl<'a> Galaxy<'a> {
                     planet_name.push_str(&i.to_string());
                     let planet = Planet {
                         name: planet_name.clone(),
-                        units: Vec::new(),
+                        location: (x, y),
                     };
                     info!("Planet {} added to star {}", planet.name, star.name);
                     star.planets.push(planet);
@@ -121,13 +182,13 @@ impl<'a> Galaxy<'a> {
 }
 
 #[derive(Debug)]
-pub struct Star<'a> {
+pub struct Star {
     pub name: String,
-    pub planets: Vec<Planet<'a>>,
+    pub planets: Vec<Planet>,
     pub location: (usize, usize),
 }
 
-impl<'a> Star<'a> {
+impl Star {
     fn distance_between(star1: &Star, star2: &Star) -> u32 {
         let x1 = star1.location.0 as f32;
         let y1 = star1.location.1 as f32;
@@ -142,81 +203,28 @@ impl<'a> Star<'a> {
     }
 }
 
-impl<'a> PartialEq for Star<'a> {
-    fn eq(&self, other: &Star<'a>) -> bool {
+impl PartialEq for Star {
+    fn eq(&self, other: &Star) -> bool {
         self.name == other.name
     }
 }
 
 #[derive(Debug)]
-pub struct UnitData<'a> {
-    pub planet: &'a Planet<'a>,
+pub struct Planet {
+    pub name: String,
+    pub location: (usize, usize),
+}
+
+#[derive(Debug)]
+pub struct Player {
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct Unit {
+    pub location: (usize, usize),
     pub size: u32,
-}
-
-impl Display for UnitData<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "UnitData {{ planet: {}, size: {} }}",
-            self.planet.name, self.size
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct Planet<'a> {
-    pub name: String,
-    pub units: Vec<&'a dyn Unit>,
-}
-
-pub trait Unit: fmt::Debug {}
-
-#[derive(Debug)]
-pub struct Player<'a> {
-    pub name: String,
-    pub start_planet: &'a Planet<'a>,
-    pub controlled_planets: Vec<&'a Planet<'a>>,
-    pub units: Vec<&'a dyn Unit>,
-}
-
-#[derive(Debug)]
-pub struct Infrantry<'a> {
-    pub data: UnitData<'a>,
-}
-
-#[derive(Debug)]
-pub struct Laborers<'a> {
-    pub data: UnitData<'a>,
-}
-
-impl Unit for Infrantry<'_> {}
-impl Unit for Laborers<'_> {}
-impl Unit for Ship<'_> {}
-
-#[derive(Debug)]
-enum ShipType {
-    Cargo,
-}
-
-#[derive(Debug)]
-struct Ship<'a> {
-    pub data: UnitData<'a>,
-    ship_type: ShipType,
-}
-
-impl<'a> Ship<'a> {
-    fn new(location: &'a Planet, ship_type: ShipType) -> Self {
-        match ship_type {
-            ShipType::Cargo => Ship {
-                ship_type: ship_type,
-                data: UnitData {
-                    planet: location,
-                    size: 1,
-                },
-            },
-        }
-    }
+    pub player: String,
 }
 
 #[cfg(test)]
@@ -225,42 +233,19 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut game = Game {
-            galaxy: Galaxy::new(),
-            players: Vec::new(),
-            turn: 0,
-        };
-        let mut galaxy = game.galaxy;
+        // Create a new galaxy
+        let mut galaxy = Galaxy::new();
         galaxy.populate_default();
+
+        // Create a new Player
+        let player = Player {
+            name: "Player 1".to_string(),
+        };
 
         // Find the distance between two total_stars
         let star1 = &galaxy.stars[0];
         let star2 = &galaxy.stars[1];
         let distance = Star::distance_between(star1, star2);
         info!("Distances {:?}", galaxy.distances[&0]);
-
-        // Init game with a laborers, infantry, and a cargo ship in the first star
-        let laborers = Laborers {
-            data: UnitData {
-                planet: &galaxy.stars[0].planets[0],
-                size: 1,
-            },
-        };
-        let infrantry = Infrantry {
-            data: UnitData {
-                planet: &galaxy.stars[0].planets[0],
-                size: 1,
-            },
-        };
-
-        // Create a new Player
-        let player = Player {
-            name: "Player 1".to_string(),
-            start_planet: &galaxy.stars[0].planets[0],
-            controlled_planets: vec![&galaxy.stars[0].planets[0]],
-            units: vec![&laborers, &infrantry],
-        };
-        info!("Player: {}, Units: {:?}", player.name, player.units);
-        game.players.push(player);
     }
 }

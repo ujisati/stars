@@ -134,17 +134,17 @@ where
                 .split(chunks[0]);
 
             // Draw tasks
-            let tasks: Vec<ListItem> = app
-                .tasks
+            let actions: Vec<ListItem> = app
+                .actions
                 .items
                 .iter()
                 .map(|i| ListItem::new(vec![Spans::from(Span::raw(*i))]))
                 .collect();
-            let tasks = List::new(tasks)
+            let tasks = List::new(actions)
                 .block(Block::default().borders(Borders::ALL).title("List"))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol("> ");
-            f.render_stateful_widget(tasks, chunks[0], &mut app.tasks.state);
+            f.render_stateful_widget(tasks, chunks[0], &mut app.actions.state);
 
             // Draw logs
             let info_style = Style::default().fg(Color::Blue);
@@ -444,7 +444,7 @@ where
 
     // Draw tasks
     let tasks: Vec<ListItem> = app
-        .tasks
+        .actions
         .items
         .iter()
         .map(|i| ListItem::new(vec![Spans::from(Span::raw(*i))]))
@@ -453,12 +453,12 @@ where
         .block(Block::default().borders(Borders::ALL).title("List"))
         .highlight_style(Style::default().add_modifier(Modifier::BOLD))
         .highlight_symbol("> ");
-    f.render_stateful_widget(tasks, chunks[0], &mut app.tasks.state);
-    // if "View My Stars" is selected, draw the list of all stars in galaxy
-    if app.tasks.state.selected().unwrap_or(1) == 1 {
+    f.render_stateful_widget(tasks, chunks[0], &mut app.actions.state);
+    // if "View My Stars" is selected, draw the list stars where player controls atleast 1 planet
+    if app.actions.state.selected().unwrap_or(1) == 1 {
         let stars: Vec<ListItem> = app
-            .galaxy
-            .stars
+            .game
+            .get_players_stars(&app.game.players[0])
             .iter()
             .map(|i| ListItem::new(vec![Spans::from(Span::raw(i.name.clone()))]))
             .collect();

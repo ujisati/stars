@@ -5,7 +5,7 @@ use rand::{
 };
 use tui::widgets::ListState;
 
-const ACTIONS: [&str; 1] = ["View My Stars"];
+const ACTIONS: [&str; 2] = ["View My Stars", "View My Units"];
 
 const LOGS: [(&str, &str); 26] = [
     ("Event1", "INFO"),
@@ -220,14 +220,13 @@ pub struct Server<'a> {
 
 pub struct App<'a> {
     pub title: &'a str,
-    // pub players: Vec<game::Player<'a>>,
-    pub galaxy: game::Galaxy<'a>,
+    pub game: game::Game,
     pub should_quit: bool,
     pub tabs: TabsState<'a>,
     pub show_chart: bool,
     pub progress: f64,
     pub sparkline: Signal<RandomSignal>,
-    pub tasks: StatefulList<&'a str>,
+    pub actions: StatefulList<&'a str>,
     pub logs: StatefulList<(&'a str, &'a str)>,
     pub signals: Signals,
     pub barchart: Vec<(&'a str, u64)>,
@@ -244,10 +243,11 @@ impl<'a> App<'a> {
         let mut sin_signal2 = SinSignal::new(0.1, 2.0, 10.0);
         let sin2_points = sin_signal2.by_ref().take(200).collect();
         let mut galaxy = game::Galaxy::new();
-        galaxy.populate_default();
+        let mut game = game::Game::new(vec!["Player 1".to_string()]);
+        game.set_players_start();
         App {
             title,
-            galaxy: galaxy,
+            game,
             should_quit: false,
             tabs: TabsState::new(vec!["Tab0", "Tab1", "Tab2", "Tab3"]),
             show_chart: true,
@@ -257,7 +257,7 @@ impl<'a> App<'a> {
                 points: sparkline_points,
                 tick_rate: 1,
             },
-            tasks: StatefulList::with_items(ACTIONS.to_vec()),
+            actions: StatefulList::with_items(ACTIONS.to_vec()),
             logs: StatefulList::with_items(LOGS.to_vec()),
             signals: Signals {
                 sin1: Signal {
@@ -304,11 +304,11 @@ impl<'a> App<'a> {
     }
 
     pub fn on_up(&mut self) {
-        self.tasks.previous();
+        self.actions.previous();
     }
 
     pub fn on_down(&mut self) {
-        self.tasks.next();
+        self.actions.next();
     }
 
     pub fn on_right(&mut self) {
