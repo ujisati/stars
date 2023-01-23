@@ -40,13 +40,15 @@ impl Game {
     pub fn set_players_start(&mut self) {
         let mut units = Vec::new();
         for player in &self.players {
-            let planet = self.random_unoccupied_habitable_planet();
-            let unit = Unit {
-                player: player.name.clone(),
-                location: planet.location,
-                size: 1,
-            };
-            units.push(unit);
+            for _ in 0..5 {
+                let planet = self.random_unoccupied_habitable_planet();
+                let unit = Unit {
+                    player: player.name.clone(),
+                    location: planet.location,
+                    size: 1,
+                };
+                units.push(unit);
+            }
         }
         self.units = units;
     }
@@ -207,6 +209,15 @@ impl Galaxy {
             }
         }
         stars
+    }
+
+    pub fn get_star_by_name(&self, name: &str) -> Option<&Star> {
+        for star in self.stars.iter() {
+            if star.name == name {
+                return Some(star);
+            }
+        }
+        None
     }
 }
 

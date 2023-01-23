@@ -82,7 +82,7 @@ pub struct App<'a> {
     pub should_quit: bool,
     pub tabs: TabsState<'a>,
     pub actions: StatefulList<&'a str>,
-    pub my_stars: StatefulList<&'a str>,
+    pub my_stars: StatefulList<String>,
     pub enhanced_graphics: bool,
     pub active_tab: &'a str,
 }
@@ -139,20 +139,20 @@ impl<'a> App<'a> {
                 self.should_quit = true;
             }
             't' => {}
-            ' ' => {
-                let i = self.actions.state.selected().unwrap_or(0);
-                let action = ACTIONS[i];
-                match action {
-                    "View My Stars" => {}
-
-                    _ => {}
-                }
-            }
+            ' ' => match self.active_tab {
+                STARS => {}
+                _ => {}
+            },
             _ => {}
         }
     }
 
     pub fn on_tick(&mut self) {
-        // Update progress
+        // set my_stars
+        let mut my_stars = Vec::new();
+        for star in self.game.get_players_stars(&self.game.players[0]) {
+            my_stars.push(star.name.to_string());
+        }
+        self.my_stars.items = my_stars;
     }
 }

@@ -44,6 +44,8 @@ where
         .split(area);
     let block = Block::default().borders(Borders::ALL).title("My Stars");
     f.render_widget(block, chunks[0]);
+    let block = Block::default().borders(Borders::ALL).title("Star Info");
+    f.render_widget(block, chunks[1]);
 
     // Draw actions
     // let actions: Vec<ListItem> = app
@@ -70,4 +72,25 @@ where
         .highlight_style(Style::default().add_modifier(Modifier::BOLD))
         .highlight_symbol("> ");
     f.render_stateful_widget(stars, chunks[0], &mut app.my_stars.state);
+
+    // Render star info of selected star
+    if app.my_stars.items.iter().count() < 1 {
+        return;
+    }
+    let selected_star = app
+        .game
+        .galaxy
+        .get_star_by_name(&app.my_stars.items[app.my_stars.state.selected().unwrap_or(0)].clone())
+        .unwrap();
+    // create a list of planets in the selected star
+    let star_info: Vec<ListItem> = selected_star
+        .planets
+        .iter()
+        .map(|i| ListItem::new(i.name.clone()))
+        .collect();
+    let star_info = List::new(star_info)
+        .block(Block::default().borders(Borders::ALL).title("Star Info"))
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+        .highlight_symbol("> ");
+    f.render_widget(star_info, chunks[1]);
 }
