@@ -40,7 +40,7 @@ impl Game {
     pub fn set_players_start(&mut self) {
         let mut units = Vec::new();
         for player in &self.players {
-            let planet = self.galaxy.random_unoccupied_planet();
+            let planet = self.random_unoccupied_habitable_planet();
             let unit = Unit {
                 player: player.name.clone(),
                 location: planet.location,
@@ -68,6 +68,30 @@ impl Game {
         }
         stars
     }
+
+    pub fn get_units_at_planet(&self, planet: &Planet) -> Vec<&Unit> {
+        let mut units = Vec::new();
+        for unit in &self.units {
+            if unit.location == planet.location {
+                units.push(unit)
+            }
+        }
+        units
+    }
+
+    pub fn random_unoccupied_habitable_planet(&self) -> &Planet {
+        loop {
+            let index = random::<usize>() % self.galaxy.total_stars;
+            let star = &self.galaxy.stars[index];
+            if star.planets.len() > 0 {
+                let planet_index = random::<usize>() % star.planets.len();
+                let planet = &star.planets[planet_index];
+                if planet.habitable && self.get_units_at_planet(planet).len() == 0 {
+                    return &star.planets[planet_index];
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -81,23 +105,15 @@ pub struct Galaxy {
 
 impl Galaxy {
     pub fn new() -> Self {
+        const X_DIM: usize = 100;
+        const Y_DIM: usize = 100;
+        let scale_factor = 10;
         Galaxy {
-            dimensions: (100 as usize, 100 as usize),
+            dimensions: (X_DIM, X_DIM),
             stars: Vec::new(),
-            star_matrix: na::SMatrix::<usize, 100, 100>::zeros(),
+            star_matrix: na::SMatrix::<usize, X_DIM, X_DIM>::zeros(),
             distances: HashMap::new(),
-            total_stars: 100 * 100 / 100,
-        }
-    }
-
-    pub fn random_unoccupied_planet(&self) -> &Planet {
-        loop {
-            let index = random::<usize>() % self.total_stars;
-            let star = &self.stars[index];
-            if star.planets.len() > 0 {
-                let planet_index = random::<usize>() % star.planets.len();
-                return &star.planets[planet_index];
-            }
+            total_stars: X_DIM * X_DIM / scale_factor,
         }
     }
 
@@ -149,6 +165,7 @@ impl Galaxy {
                     let planet = Planet {
                         name: planet_name.clone(),
                         location: (x, y),
+                        habitable: random::<bool>(),
                     };
                     info!("Planet {} added to star {}", planet.name, star.name);
                     star.planets.push(planet);
@@ -178,6 +195,18 @@ impl Galaxy {
             distances_to.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
             self.distances.insert(i, distances_to);
         }
+    }
+
+    fn get_stars_within_range(&self, star: &Star, range: u32) -> Vec<&Star> {
+        let mut stars = Vec::new();
+        let star_index = self.get_star_index(star);
+        let distances: &Vec<(usize, u32)> = &self.distances[&star_index];
+        for distance in distances {
+            if distance.1 <= range {
+                stars.push(&self.stars[distance.0]);
+            }
+        }
+        stars
     }
 }
 
@@ -213,6 +242,7 @@ impl PartialEq for Star {
 pub struct Planet {
     pub name: String,
     pub location: (usize, usize),
+    pub habitable: bool,
 }
 
 #[derive(Debug)]
