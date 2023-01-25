@@ -7,6 +7,7 @@ use tui::widgets::ListState;
 use tui_tree_widget::{TreeItem, TreeState};
 
 const STARS: &str = "Stars";
+const MAP: &str = "Map";
 const ACTIONS: [&str; 2] = ["View My Stars", "View My Units"];
 
 pub struct StatefulTree<'a> {
@@ -148,7 +149,7 @@ impl<'a> App<'a> {
             title,
             game,
             should_quit: false,
-            tabs: TabsState::new(vec![STARS]),
+            tabs: TabsState::new(vec![STARS, MAP]),
             actions: StatefulList::with_items(ACTIONS.to_vec()),
             my_stars: StatefulList {
                 state: ListState::default(),
