@@ -4,9 +4,60 @@ use rand::{
     rngs::ThreadRng,
 };
 use tui::widgets::ListState;
+use tui_tree_widget::{TreeItem, TreeState};
 
 const STARS: &str = "Stars";
 const ACTIONS: [&str; 2] = ["View My Stars", "View My Units"];
+
+pub struct StatefulTree<'a> {
+    pub state: TreeState,
+    pub items: Vec<TreeItem<'a>>,
+}
+
+impl<'a> StatefulTree<'a> {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        Self {
+            state: TreeState::default(),
+            items: Vec::new(),
+        }
+    }
+
+    pub fn with_items(items: Vec<TreeItem<'a>>) -> Self {
+        Self {
+            state: TreeState::default(),
+            items,
+        }
+    }
+
+    pub fn first(&mut self) {
+        self.state.select_first();
+    }
+
+    pub fn last(&mut self) {
+        self.state.select_last(&self.items);
+    }
+
+    pub fn down(&mut self) {
+        self.state.key_down(&self.items);
+    }
+
+    pub fn up(&mut self) {
+        self.state.key_up(&self.items);
+    }
+
+    pub fn left(&mut self) {
+        self.state.key_left();
+    }
+
+    pub fn right(&mut self) {
+        self.state.key_right();
+    }
+
+    pub fn toggle(&mut self) {
+        self.state.toggle_selected();
+    }
+}
 
 pub struct TabsState<'a> {
     pub titles: Vec<&'a str>,
@@ -85,12 +136,13 @@ pub struct App<'a> {
     pub my_stars: StatefulList<String>,
     pub enhanced_graphics: bool,
     pub active_tab: &'a str,
+    pub tree: StatefulTree<'a>,
 }
 
 impl<'a> App<'a> {
     pub fn new(title: &'a str, enhanced_graphics: bool) -> App<'a> {
         let mut galaxy = game::Galaxy::new();
-        let mut game = game::Game::new(vec!["Player 1".to_string()]);
+        let mut game = game::Game::new(vec!["Player 1"]);
         game.set_players_start();
         App {
             title,
@@ -104,13 +156,14 @@ impl<'a> App<'a> {
             },
             enhanced_graphics,
             active_tab: STARS,
+            tree: StatefulTree::new(),
         }
     }
 
     pub fn on_up(&mut self) {
         match self.active_tab {
             STARS => {
-                self.my_stars.previous();
+                self.tree.up();
             }
             _ => {}
         }
@@ -119,7 +172,7 @@ impl<'a> App<'a> {
     pub fn on_down(&mut self) {
         match self.active_tab {
             STARS => {
-                self.my_stars.next();
+                self.tree.down();
             }
             _ => {}
         }
@@ -140,7 +193,9 @@ impl<'a> App<'a> {
             }
             't' => {}
             ' ' => match self.active_tab {
-                STARS => {}
+                STARS => {
+                    self.tree.toggle();
+                }
                 _ => {}
             },
             _ => {}
@@ -148,11 +203,19 @@ impl<'a> App<'a> {
     }
 
     pub fn on_tick(&mut self) {
-        // set my_stars
-        let mut my_stars = Vec::new();
-        for star in self.game.get_players_stars(&self.game.players[0]) {
-            my_stars.push(star.name.to_string());
-        }
-        self.my_stars.items = my_stars;
+        self.tree.items = self
+            .game
+            .get_players_stars("Player 1")
+            .iter()
+            .map(|s| {
+                TreeItem::new(
+                    s.name.clone(),
+                    s.planets
+                        .iter()
+                        .map(|p| TreeItem::new(p.name.clone(), vec![]))
+                        .collect::<Vec<TreeItem>>(),
+                )
+            })
+            .collect();
     }
 }

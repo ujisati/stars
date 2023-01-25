@@ -13,17 +13,16 @@ pub struct Game {
     pub players: Vec<Player>,
     pub turn: u32,
     pub game_over: bool,
-    pub units: Vec<Unit>,
 }
 
 impl Game {
-    pub fn new(players: Vec<String>) -> Self {
+    pub fn new(players: Vec<&str>) -> Self {
         let mut galaxy = Galaxy::new();
         galaxy.populate_default();
         let players = players
             .iter()
             .map(|player| Player {
-                name: player.clone(),
+                name: player.to_string(),
             })
             .collect();
 
@@ -32,65 +31,60 @@ impl Game {
             players,
             turn: 0,
             game_over: false,
-            units: Vec::new(),
         };
         game
     }
 
     pub fn set_players_start(&mut self) {
-        let mut units = Vec::new();
         for player in &self.players {
-            for _ in 0..5 {
-                let planet = self.random_unoccupied_habitable_planet();
-                let unit = Unit {
-                    player: player.name.clone(),
-                    location: planet.location,
-                    size: 1,
-                };
-                units.push(unit);
-            }
+            let location = self.random_unoccupied_habitable_planet();
+            let planet = self.galaxy.get_planet_from_loc(location);
+            let unit = Unit {
+                player: player.name.clone(),
+                size: 1,
+            };
+            planet.units.push(unit);
         }
-        self.units = units;
     }
 
     pub fn get_players_units(&self, player: &Player) -> Vec<&Unit> {
         let mut units = Vec::new();
-        for unit in &self.units {
-            if unit.player == player.name {
-                units.push(unit)
+        for star in &self.galaxy.stars {
+            for planet in &star.planets {
+                for unit in &planet.units {
+                    if unit.player == player.name {
+                        units.push(unit);
+                    }
+                }
             }
         }
         units
     }
 
-    pub fn get_players_stars(&self, player: &Player) -> Vec<&Star> {
+    pub fn get_players_stars(&self, player: &str) -> Vec<&Star> {
         let mut stars = Vec::new();
-        for unit in self.get_players_units(player) {
-            stars.push(self.galaxy.get_star_from_loc(unit.location))
+        for star in &self.galaxy.stars {
+            for planet in &star.planets {
+                for unit in &planet.units {
+                    if unit.player == player {
+                        stars.push(star);
+                        break;
+                    }
+                }
+            }
         }
         stars
     }
 
-    pub fn get_units_at_planet(&self, planet: &Planet) -> Vec<&Unit> {
-        let mut units = Vec::new();
-        for unit in &self.units {
-            if unit.location == planet.location {
-                units.push(unit)
-            }
-        }
-        units
-    }
-
-    pub fn random_unoccupied_habitable_planet(&self) -> &Planet {
+    pub fn random_unoccupied_habitable_planet(&self) -> (usize, usize, usize) {
         loop {
-            let index = random::<usize>() % self.galaxy.total_stars;
-            let star = &self.galaxy.stars[index];
-            if star.planets.len() > 0 {
-                let planet_index = random::<usize>() % star.planets.len();
-                let planet = &star.planets[planet_index];
-                if planet.habitable && self.get_units_at_planet(planet).len() == 0 {
-                    return &star.planets[planet_index];
-                }
+            let star = &self.galaxy.stars[random::<usize>() % self.galaxy.total_stars];
+            if star.planets.len() == 0 {
+                continue;
+            }
+            let planet = &star.planets[random::<usize>() % star.planets.len()];
+            if planet.units.len() == 0 && planet.habitable {
+                return (star.location.0, star.location.1, planet.location.2);
             }
         }
     }
@@ -119,9 +113,14 @@ impl Galaxy {
         }
     }
 
-    pub fn get_star_from_loc(&self, location: (usize, usize)) -> &Star {
+    pub fn get_star_from_loc(&mut self, location: (usize, usize)) -> &mut Star {
         let index = self.star_matrix[(location.0, location.1)];
-        &self.stars[index]
+        &mut self.stars[index]
+    }
+
+    pub fn get_planet_from_loc(&mut self, location: (usize, usize, usize)) -> &mut Planet {
+        let star = self.get_star_from_loc((location.0, location.1));
+        &mut star.planets[location.2]
     }
 
     fn add_star(&mut self, star: Star, index: usize) -> Result<(), &str> {
@@ -160,14 +159,15 @@ impl Galaxy {
                     planets: Vec::new(),
                     location: (x, y),
                 };
-                for i in 0..num_planets {
+                for z in 0..num_planets {
                     let mut planet_name = name.clone();
                     planet_name.push_str("-");
                     planet_name.push_str(&i.to_string());
                     let planet = Planet {
                         name: planet_name.clone(),
-                        location: (x, y),
+                        location: (x, y, z),
                         habitable: random::<bool>(),
+                        units: Vec::new(),
                     };
                     info!("Planet {} added to star {}", planet.name, star.name);
                     star.planets.push(planet);
@@ -187,7 +187,7 @@ impl Galaxy {
         for (i, star) in self.stars.iter().enumerate() {
             let mut distances_to = Vec::new();
             for other_star in self.stars.iter() {
-                if star == other_star {
+                if star.name == other_star.name {
                     continue;
                 }
                 let distance = Star::distance_between(star, other_star);
@@ -243,17 +243,12 @@ impl Star {
     }
 }
 
-impl PartialEq for Star {
-    fn eq(&self, other: &Star) -> bool {
-        self.name == other.name
-    }
-}
-
 #[derive(Debug)]
 pub struct Planet {
     pub name: String,
-    pub location: (usize, usize),
+    pub location: (usize, usize, usize),
     pub habitable: bool,
+    pub units: Vec<Unit>,
 }
 
 #[derive(Debug)]
@@ -263,7 +258,6 @@ pub struct Player {
 
 #[derive(Debug)]
 pub struct Unit {
-    pub location: (usize, usize),
     pub size: u32,
     pub player: String,
 }
@@ -274,19 +268,27 @@ mod tests {
 
     #[test]
     fn test() {
-        // Create a new galaxy
-        let mut galaxy = Galaxy::new();
-        galaxy.populate_default();
+        // Create list of players
+        let mut players = vec!["Player 1", "Player 2"];
 
-        // Create a new Player
-        let player = Player {
-            name: "Player 1".to_string(),
-        };
+        // Create a game
+        let mut game = Game::new(players);
+
+        // Set player start
+        game.set_players_start();
 
         // Find the distance between two total_stars
-        let star1 = &galaxy.stars[0];
-        let star2 = &galaxy.stars[1];
+        let star1 = &game.galaxy.stars[0];
+        let star2 = &game.galaxy.stars[1];
         let distance = Star::distance_between(star1, star2);
-        info!("Distances {:?}", galaxy.distances[&0]);
+        info!("Distances {:?}", game.galaxy.distances[&0]);
+
+        // Get all stars within range
+        let stars = game.galaxy.get_stars_within_range(star1, 100);
+        assert!(stars.len() > 0);
+
+        // Get players stars
+        let player_stars = game.get_players_stars("Player 1");
+        assert!(player_stars.len() > 0);
     }
 }
