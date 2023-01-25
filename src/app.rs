@@ -212,7 +212,7 @@ impl<'a> App<'a> {
             .iter()
             .map(|s| {
                 TreeItem::new(
-                    s.name.clone(),
+                    s.to_string(),
                     s.planets
                         .iter()
                         .map(|p| TreeItem::new(p.name.clone(), vec![]))

@@ -37,13 +37,15 @@ impl Game {
 
     pub fn set_players_start(&mut self) {
         for player in &self.players {
-            let location = self.random_unoccupied_habitable_planet();
-            let planet = self.galaxy.get_planet_from_loc(location);
-            let unit = Unit {
-                player: player.name.clone(),
-                size: 1,
-            };
-            planet.units.push(unit);
+            for _ in 0..5 {
+                let location = self.random_unoccupied_habitable_planet();
+                let planet = self.galaxy.get_planet_from_loc(location);
+                let unit = Unit {
+                    player: player.name.clone(),
+                    size: 1,
+                };
+                planet.units.push(unit);
+            }
         }
     }
 
@@ -226,6 +228,12 @@ pub struct Star {
     pub name: String,
     pub planets: Vec<Planet>,
     pub location: (usize, usize),
+}
+
+impl fmt::Display for Star {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {:?}", self.name, self.location)
+    }
 }
 
 impl Star {

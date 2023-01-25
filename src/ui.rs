@@ -26,6 +26,15 @@ impl Shape for game::Galaxy {
     }
 }
 
+impl Shape for game::Star {
+    fn draw(&self, painter: &mut Painter) {
+        let (x, y) = self.location;
+        if let Some((x, y)) = painter.get_point(x as f64, y as f64) {
+            painter.paint(x, y, Color::Red);
+        }
+    }
+}
+
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
         .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
@@ -51,7 +60,6 @@ fn draw_first_tab<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
-    // let chunks = Layout::default()
     //     .direction(Direction::Horizontal)
     //     .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
     //     .split(area);
@@ -78,13 +86,37 @@ where
     B: Backend,
 {
     let canvas = Canvas::default()
-        .block(Block::default().borders(Borders::ALL).title("World"))
+        .block(Block::default().borders(Borders::ALL).title("Galaxy"))
         .paint(|ctx| {
             ctx.draw(&app.game.galaxy);
+            let star_index = app.tree.state.selected()[0];
+            let star = app.game.get_players_stars("Player 1")[star_index];
+            let star_label_point = get_star_label_point(&star);
+            ctx.draw(star);
+            ctx.print(
+                star_label_point.0,
+                star_label_point.1,
+                Span::styled(star.name.clone(), Style::default().fg(Color::White)),
+            );
         })
-        .x_bounds([0.0, area.width as f64])
-        .y_bounds([0.0, area.height as f64]);
+        .x_bounds([0.0, 100.0])
+        .y_bounds([0.0, 100.0]);
     f.render_widget(canvas, area);
+}
+
+fn get_star_label_point(star: &game::Star) -> (f64, f64) {
+    let (mut x, mut y) = star.location;
+    if y < 10 {
+        y += 3;
+    } else {
+        y -= 3;
+    }
+    if x < 10 {
+        x += 3;
+    } else {
+        x -= 3;
+    }
+    (x as f64, y as f64)
 }
 
 // TODO
