@@ -12,6 +12,7 @@ use tui::{
     },
     Frame,
 };
+use tui_tree_widget::{Tree, TreeItem};
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
@@ -61,36 +62,34 @@ where
     // f.render_stateful_widget(actions, chunks[0], &mut app.actions.state);
 
     // if "View My Stars" is selected, draw the list stars where player controls atleast 1 planet
-    let stars: Vec<ListItem> = app
-        .game
-        .get_players_stars(&app.game.players[0])
-        .iter()
-        .map(|i| ListItem::new(i.name.clone()))
-        .collect();
-    let stars = List::new(stars)
-        .block(Block::default().borders(Borders::ALL).title("Stars"))
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-        .highlight_symbol("> ");
-    f.render_stateful_widget(stars, chunks[0], &mut app.my_stars.state);
-
-    // Render star info of selected star
-    if app.my_stars.items.iter().count() < 1 {
-        return;
-    }
-    let selected_star = app
-        .game
-        .galaxy
-        .get_star_by_name(&app.my_stars.items[app.my_stars.state.selected().unwrap_or(0)].clone())
-        .unwrap();
-    // create a list of planets in the selected star
-    let star_info: Vec<ListItem> = selected_star
-        .planets
-        .iter()
-        .map(|i| ListItem::new(i.name.clone()))
-        .collect();
-    let star_info = List::new(star_info)
-        .block(Block::default().borders(Borders::ALL).title("Star Info"))
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-        .highlight_symbol("> ");
-    f.render_widget(star_info, chunks[1]);
+    // let stars: Vec<ListItem> = app
+    //     .game
+    //     .get_players_stars("Player 1")
+    //     .iter()
+    //     .map(|i| ListItem::new(i.name.clone()))
+    //     .collect();
+    // let stars = List::new(stars)
+    //     .block(Block::default().borders(Borders::ALL).title("Stars"))
+    //     .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+    //     .highlight_symbol("> ");
+    // f.render_stateful_widget(stars, chunks[0], &mut app.my_stars.state);
+    let items = Tree::new(app.tree.items.clone())
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Tree Widget {:?}", app.tree.state)),
+        )
+        .highlight_style(
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::LightGreen)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+    f.render_stateful_widget(items, area, &mut app.tree.state);
 }
+
+// TODO
+// CANVAS POINT CLOUD OF THE GALAXY
+// TREE VIEW OF OWNED STARS
+// Sole control vs contested

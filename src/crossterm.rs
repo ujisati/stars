@@ -62,6 +62,7 @@ fn run_app<B: Backend>(
                     KeyCode::Up => app.on_up(),
                     KeyCode::Right => app.on_right(),
                     KeyCode::Down => app.on_down(),
+                    KeyCode::Enter => app.on_enter(),
                     _ => {}
                 }
             }

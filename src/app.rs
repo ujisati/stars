@@ -191,15 +191,17 @@ impl<'a> App<'a> {
             'q' => {
                 self.should_quit = true;
             }
-            't' => {}
-            ' ' => match self.active_tab {
-                STARS => {
-                    self.tree.toggle();
-                }
-                _ => {}
-            },
             _ => {}
         }
+    }
+
+    pub fn on_enter(&mut self) {
+        match self.active_tab {
+            STARS => {
+                self.tree.toggle();
+            }
+            _ => {}
+        };
     }
 
     pub fn on_tick(&mut self) {
