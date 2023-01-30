@@ -215,7 +215,15 @@ impl<'a> App<'a> {
                     s.to_string(),
                     s.planets
                         .iter()
-                        .map(|p| TreeItem::new(p.name.clone(), vec![]))
+                        .map(|p| {
+                            TreeItem::new(
+                                p.name.clone(),
+                                p.units
+                                    .iter()
+                                    .map(|u| TreeItem::new(u.unit_type.to_string(), vec![]))
+                                    .collect::<Vec<TreeItem>>(),
+                            )
+                        })
                         .collect::<Vec<TreeItem>>(),
                 )
             })

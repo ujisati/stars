@@ -15,9 +15,9 @@ use tui::{
 };
 use tui_tree_widget::{Tree, TreeItem};
 
-impl Shape for game::Galaxy {
+impl Shape for game::Game {
     fn draw(&self, painter: &mut Painter) {
-        for star in &self.stars {
+        for star in &self.get_player_visible_stars(self.get_player("Player 1")) {
             let (x, y) = star.location;
             if let Some((x, y)) = painter.get_point(x as f64, y as f64) {
                 painter.paint(x, y, Color::Yellow);
@@ -88,7 +88,7 @@ where
     let canvas = Canvas::default()
         .block(Block::default().borders(Borders::ALL).title("Galaxy"))
         .paint(|ctx| {
-            ctx.draw(&app.game.galaxy);
+            ctx.draw(&app.game);
             let star_index = app.tree.state.selected()[0];
             let star = app.game.get_players_stars("Player 1")[star_index];
             let star_label_point = get_star_label_point(&star);
@@ -106,20 +106,7 @@ where
 
 fn get_star_label_point(star: &game::Star) -> (f64, f64) {
     let (mut x, mut y) = star.location;
-    if y < 10 {
-        y += 3;
-    } else {
-        y -= 3;
-    }
-    if x < 10 {
-        x += 3;
-    } else {
-        x -= 3;
-    }
+    x = x.clamp(1, 99) + 1;
+    y = y.clamp(1, 99) + 1;
     (x as f64, y as f64)
 }
-
-// TODO
-// CANVAS POINT CLOUD OF THE GALAXY
-// TREE VIEW OF OWNED STARS
-// Sole control vs contested
