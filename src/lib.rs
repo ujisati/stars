@@ -1,14 +1,17 @@
 mod resource;
 mod entities;
+mod errors;
 
 use std::any::Any;
 
 use resource::Resource;
+use entities::Entities;
 
 
 #[derive(Default)]
 pub struct World {
     resources: Resource,
+    entities: Entities,
 }
 
 impl World {
@@ -30,5 +33,13 @@ impl World {
 
     pub fn remove_resource<T: Any>(&mut self) {
         self.resources.remove::<T>();
+    }
+    
+    pub fn register_component<T: Any + 'static>(&mut self) {
+        self.entities.register_component::<T>();
+    }
+
+    pub fn create_entity(&mut self) -> &mut Entities {
+        self.entities.create_entity()
     }
 }
