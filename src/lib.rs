@@ -1,4 +1,5 @@
 mod resource;
+mod entities;
 
 use std::any::Any;
 
