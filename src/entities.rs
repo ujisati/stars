@@ -1,3 +1,5 @@
+pub mod query;
+
 use std::{
     any::{Any, TypeId},
     cell::RefCell,
@@ -5,36 +7,50 @@ use std::{
     rc::Rc,
 };
 
-use eyre::{bail, Result};
 use crate::errors::Errors;
+use eyre::{bail, Result};
 
 #[derive(Debug, Default)]
 pub struct Entities {
     components: HashMap<TypeId, Vec<Option<Rc<RefCell<dyn Any>>>>>,
+    bit_masks: HashMap<TypeId, u32>,
+    map: Vec<u32>,
 }
 
 impl Entities {
     pub fn register_component<T: Any + 'static>(&mut self) {
-        self.components.insert(TypeId::of::<T>(), vec![]);
+        let type_id = TypeId::of::<T>();
+        let bit_mask = 1 << self.bit_masks.len();
+        self.bit_masks.insert(type_id, bit_mask);
+        self.components.insert(type_id, vec![]);
     }
 
     pub fn create_entity(&mut self) -> &mut Self {
         self.components.iter_mut().for_each(|(_, components)| {
             components.push(None);
         });
+        self.map.push(0);
+
         self
     }
 
     pub fn with(&mut self, data: impl Any) -> Result<&mut Self> {
         let type_id = data.type_id();
+        let map_index = self.map.len() - 1;
         if let Some(components) = self.components.get_mut(&type_id) {
-            let last_component = components.last_mut().ok_or(Errors::CreateComponentNeverCalled)?;
+            let last_component = components
+                .last_mut()
+                .ok_or(Errors::CreateComponentNeverCalled)?;
             *last_component = Some(Rc::new(RefCell::new(data)));
+            let bit_mask = self.bit_masks.get(&type_id).unwrap();
+            self.map[map_index] |= *bit_mask;
         } else {
             return Err(Errors::ComponentNotRegistered.into());
         }
         Ok(self)
     }
+
+
 }
 
 #[cfg(test)]
@@ -48,6 +64,21 @@ mod test {
         let type_id = TypeId::of::<Health>();
         let health_componenets = entities.components.get(&type_id).unwrap();
         assert_eq!(health_componenets.len(), 0);
+    }
+
+    #[test]
+    fn bitmask_updated_when_registering_entities() {
+        let mut entities = Entities::default();
+        entities.register_component::<Health>();
+        let type_id = TypeId::of::<Health>();
+        let health_mask = entities.bit_masks.get(&type_id).unwrap();
+        assert_eq!(*health_mask, 1);
+
+        entities.register_component::<Speed>();
+        let type_id = TypeId::of::<Speed>();
+        let health_mask = entities.bit_masks.get(&type_id).unwrap();
+        assert_eq!(*health_mask, 2);
+
     }
 
     #[test]
@@ -67,12 +98,35 @@ mod test {
         let mut entities = Entities::default();
         entities.register_component::<Health>();
         entities.register_component::<Speed>();
-        entities.create_entity().with(Health(100))?.with(Speed(10))?; 
+        entities
+            .create_entity()
+            .with(Health(100))?
+            .with(Speed(10))?;
         let first_health = &entities.components.get(&TypeId::of::<Health>()).unwrap()[0];
         let wrapped_health = first_health.as_ref().unwrap();
         let borrowed_health = wrapped_health.borrow();
         let health = borrowed_health.downcast_ref::<Health>().unwrap();
         assert_eq!(health.0, 100);
+        Ok(())
+    }
+
+    #[test]
+    fn map_is_updated_when_creating_entities() -> Result<()> {
+        let mut entities = Entities::default();
+        entities.register_component::<Health>();
+        entities.register_component::<Speed>();
+        entities
+            .create_entity()
+            .with(Health(100))?
+            .with(Speed(10))?;
+        entities
+            .create_entity()
+            .with(Health(200))?
+            .with(Speed(20))?;
+
+        let entity_map = entities.map[0];
+        assert_eq!(entity_map, 3);
+         
         Ok(())
     }
 
