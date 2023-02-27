@@ -5,7 +5,7 @@ mod errors;
 use std::any::Any;
 
 use resource::Resource;
-use entities::Entities;
+use entities::{Entities, query::Query};
 
 
 #[derive(Default)]
@@ -41,5 +41,9 @@ impl World {
 
     pub fn create_entity(&mut self) -> &mut Entities {
         self.entities.create_entity()
+    }
+
+    pub fn query(&self) -> Query {
+        Query::new(&self.entities)
     }
 }
