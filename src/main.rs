@@ -1,14 +1,3 @@
-/// A simple example demonstrating how to handle user input. This is
-/// a bit out of the scope of the library as it does not provide any
-/// input handling out of the box. However, it may helps some to get
-/// started.
-///
-/// This is a very simple example:
-///   * A input box always focused. Every character you type is registered
-///   here
-///   * Pressing Backspace erases a character
-///   * Pressing Enter pushes the current input in the history of previous
-///   messages
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -25,13 +14,14 @@ use tui::{
 };
 use unicode_width::UnicodeWidthStr;
 
+use bevy::prelude::*;
+
 enum InputMode {
     Normal,
     Editing,
 }
 
-/// App holds the state of the application
-struct App {
+struct TuiState {
     /// Current value of the input box
     input: String,
     /// Current input mode
@@ -40,9 +30,9 @@ struct App {
     messages: Vec<String>,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
+impl Default for TuiState {
+    fn default() -> TuiState {
+        TuiState {
             input: String::new(),
             input_mode: InputMode::Normal,
             messages: Vec::new(),
@@ -50,45 +40,51 @@ impl Default for App {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    App::new().set_runner(runner).run();
+}
+
+fn runner(app: App) {
     // setup terminal
-    enable_raw_mode()?;
+    enable_raw_mode().expect("failed to enter raw mode");
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+        .expect("failed to enter alternate screen or enable mouse capture");
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = Terminal::new(backend).expect("failed to create terminal backend");
 
-    // create app and run it
-    let app = App::default();
-    let res = run_app(&mut terminal, app);
-
-    // TODO: setup custom runner for bevy https://github.com/bevyengine/bevy/blob/main/examples/app/custom_loop.rs
-
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    // create game loop and run it
+    let tui_state = TuiState::default();
+    let res = loop_game(&mut terminal, tui_state, app);
 
     if let Err(err) = res {
         println!("{:?}", err)
     }
 
-    Ok(())
+    // restore terminal
+    disable_raw_mode().expect("failed to disable raw mode");
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )
+    .expect("failed to leave alternate screen or disable mouse capture");
+    terminal.show_cursor().expect("failed to show cursor");
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+fn loop_game<B: Backend>(
+    terminal: &mut Terminal<B>,
+    mut tui_state: TuiState,
+    mut app: App,
+) -> io::Result<()> {
     loop {
-        terminal.draw(|f| ui(f, &app))?;
+        terminal.draw(|f| ui(f, &tui_state))?;
 
         if let Event::Key(key) = event::read()? {
-            match app.input_mode {
+            match tui_state.input_mode {
                 InputMode::Normal => match key.code {
                     KeyCode::Char('e') => {
-                        app.input_mode = InputMode::Editing;
+                        tui_state.input_mode = InputMode::Editing;
                     }
                     KeyCode::Char('q') => {
                         return Ok(());
@@ -97,25 +93,28 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        app.messages.push(app.input.drain(..).collect());
+                        tui_state.messages.push(tui_state.input.drain(..).collect());
                     }
                     KeyCode::Char(c) => {
-                        app.input.push(c);
+                        tui_state.input.push(c);
                     }
                     KeyCode::Backspace => {
-                        app.input.pop();
+                        tui_state.input.pop();
                     }
                     KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
+                        tui_state.input_mode = InputMode::Normal;
                     }
                     _ => {}
                 },
             }
         }
+
+        // update bevy
+        app.update();
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
+fn ui<B: Backend>(f: &mut Frame<B>, app: &TuiState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
