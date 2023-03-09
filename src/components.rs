@@ -4,6 +4,7 @@ use bevy::prelude::*;
 enum Unit {
     Probe,
     CargoShip,
+    BattleShip,
 }
 
 enum Structure {
@@ -49,11 +50,15 @@ mod astronomy {
 }
 
 mod structure {
+    use super::*;
+
     #[derive(Component)]
     struct Size(u32);
 }
 
 mod ship {
+    use super::*;
+
     #[derive(Component)] // TODO: does this need to be / should be a component?
     enum FuelEfficiency {
         Fossil = 1,

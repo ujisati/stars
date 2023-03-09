@@ -1,3 +1,8 @@
+mod components;
+mod resources;
+mod tech;
+mod bundles;
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -41,7 +46,11 @@ impl Default for TuiState {
 }
 
 fn main() {
-    App::new().set_runner(runner).run();
+    App::new()
+        .set_runner(runner)
+        .init_resource::<resources::Galaxy>()
+        .add_plugins(MinimalPlugins)
+        .run();
 }
 
 fn runner(app: App) {
@@ -190,4 +199,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &TuiState) {
     let messages =
         List::new(messages).block(Block::default().borders(Borders::ALL).title("Messages"));
     f.render_widget(messages, chunks[2]);
+}
+
+mod tests {
+    use super::*;
+
+    fn spawn_galaxy() {
+        /*
+        A galaxy is created with a random number of planets
+        */
+    }
+
+    fn spawn_player() {
+        /*
+        A player is assigned a random planet
+
+        */
+    }
+
+    #[test]
+    fn test_game() {
+        // setup the app and add a system that spawns a player
+        let app = App::new().add_startup_system(spawn_player);
+    }
 }
