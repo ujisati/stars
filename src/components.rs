@@ -1,12 +1,6 @@
 use crate::tech;
 use bevy::prelude::*;
 
-enum Unit {
-    Probe,
-    CargoShip,
-    BattleShip,
-}
-
 enum Structure {
     Pipeline,
     ResearchLab,
@@ -16,27 +10,26 @@ enum Structure {
     SignalJammer,
 }
 
+
+#[derive(Component)]
 struct Location {
     star_x: usize,
     star_y: usize,
     planet_z: usize,
 }
 
+#[derive(Component)]
 struct Player {
     name: String,
 }
 
+#[derive(Component)]
 struct Visibility {
     /*
         Visibility can be jammed or certain ships could have stealth,
-        in which case the unit must keep track of its own visibility status
-        but what if it can be seen by some things but not others?
     */
     range: u32,
-    units_visible: Vec<Unit>,
-    structures_visible: Vec<Structure>,
 }
-
 
 mod astronomy {
     enum AstronomicalObject {
@@ -67,6 +60,11 @@ mod ship {
     }
 
     #[derive(Component)]
+    enum DefenseSystem {
+        Laser(u32),
+    }
+
+    #[derive(Component)]
     struct Engine {
         current_fuel: u32,
         max_fuel: u32,
@@ -79,8 +77,17 @@ mod ship {
         max_cargo: u32,
     }
 
+    #[derive(Bundle)]
+    struct ShipBundle {
+        location: Location,
+        engine: Engine,
+        cargo_bay: CargoBay,
+        defense_system: DefenseSystem,
+    }
+
+
     #[derive(Component)]
-    enum DefenseSystem {
-        Laser(u32),
+    struct Probe {
+                  
     }
 }

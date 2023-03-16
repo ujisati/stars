@@ -1,7 +1,7 @@
+mod bundles;
 mod components;
 mod resources;
 mod tech;
-mod bundles;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -20,6 +20,8 @@ use tui::{
 use unicode_width::UnicodeWidthStr;
 
 use bevy::prelude::*;
+use log;
+use resources::*;
 
 enum InputMode {
     Normal,
@@ -46,8 +48,10 @@ impl Default for TuiState {
 }
 
 fn main() {
+    env_logger::init();
     App::new()
         .set_runner(runner)
+        .init_resource::<resources::Config>()
         .init_resource::<resources::Galaxy>()
         .add_plugins(MinimalPlugins)
         .run();
@@ -56,11 +60,14 @@ fn main() {
 fn runner(app: App) {
     // setup terminal
     enable_raw_mode().expect("failed to enter raw mode");
+    log::info!("crossterm raw mode enabled");
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
         .expect("failed to enter alternate screen or enable mouse capture");
+    log::info!("crossterm alternate screen enabled, mouse capture enabled");
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).expect("failed to create terminal backend");
+    log::info!("terminal backend created");
 
     // create game loop and run it
     let tui_state = TuiState::default();
@@ -87,8 +94,12 @@ fn loop_game<B: Backend>(
     mut app: App,
 ) -> io::Result<()> {
     loop {
+        log::info!("beginning game loop");
+
+        log::info!("drawing ui");
         terminal.draw(|f| ui(f, &tui_state))?;
 
+        log::info!("reading input");
         if let Event::Key(key) = event::read()? {
             match tui_state.input_mode {
                 InputMode::Normal => match key.code {
@@ -119,6 +130,7 @@ fn loop_game<B: Backend>(
         }
 
         // update bevy
+        log::info!("updating bevy");
         app.update();
     }
 }
@@ -204,22 +216,23 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &TuiState) {
 mod tests {
     use super::*;
 
-    fn spawn_galaxy() {
-        /*
-        A galaxy is created with a random number of planets
-        */
-    }
+    #[test]
+    fn test_config() {
+        let mut app = App::new();
+        app.init_resource::<Config>();
+        app.update();
 
-    fn spawn_player() {
-        /*
-        A player is assigned a random planet
-
-        */
+        let config = app.world.get_resource::<Config>().unwrap();
+        assert_eq!(config.galaxy_dim, 100);
     }
 
     #[test]
-    fn test_game() {
-        // setup the app and add a system that spawns a player
-        let app = App::new().add_startup_system(spawn_player);
+    fn test_galaxy() {
+        let mut app = App::new();
+        app.init_resource::<Config>().init_resource::<Galaxy>();
+        app.update();
+
+        let galaxy = app.world.get_resource::<Galaxy>().unwrap();
+        assert_eq!(galaxy.object_grid.len(), 10);
     }
 }
