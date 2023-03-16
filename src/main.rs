@@ -14,7 +14,10 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{
+        canvas::{Canvas, Painter, Shape},
+        Block, Borders, List, ListItem, Paragraph,
+    },
     Frame, Terminal,
 };
 use unicode_width::UnicodeWidthStr;
@@ -49,11 +52,13 @@ impl Default for TuiState {
 
 fn main() {
     env_logger::init();
+    log::info!("creating bevy app");
     App::new()
         .set_runner(runner)
         .init_resource::<resources::Config>()
         .init_resource::<resources::Galaxy>()
-        .add_plugins(MinimalPlugins)
+        // .add_plugins(MinimalPlugins)
+        // for some reason, adding minimal plugins causes the crossterm backend to not render
         .run();
 }
 
@@ -97,7 +102,7 @@ fn loop_game<B: Backend>(
         log::info!("beginning game loop");
 
         log::info!("drawing ui");
-        terminal.draw(|f| ui(f, &tui_state))?;
+        terminal.draw(|f| ui(f, &tui_state, &app))?;
 
         log::info!("reading input");
         if let Event::Key(key) = event::read()? {
@@ -135,82 +140,37 @@ fn loop_game<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &TuiState) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints(
-            [
-                Constraint::Length(1),
-                Constraint::Length(3),
-                Constraint::Min(1),
-            ]
-            .as_ref(),
-        )
-        .split(f.size());
-
-    let (msg, style) = match app.input_mode {
-        InputMode::Normal => (
-            vec![
-                Span::raw("Press "),
-                Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" to exit, "),
-                Span::styled("e", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" to start editing."),
-            ],
-            Style::default().add_modifier(Modifier::RAPID_BLINK),
-        ),
-        InputMode::Editing => (
-            vec![
-                Span::raw("Press "),
-                Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" to stop editing, "),
-                Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" to record the message"),
-            ],
-            Style::default(),
-        ),
-    };
-    let mut text = Text::from(Spans::from(msg));
-    text.patch_style(style);
-    let help_message = Paragraph::new(text);
-    f.render_widget(help_message, chunks[0]);
-
-    let input = Paragraph::new(app.input.as_ref())
-        .style(match app.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::Editing => Style::default().fg(Color::Yellow),
+fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &App) {
+    let canvas = Canvas::default()
+        .block(Block::default().borders(Borders::ALL).title("Galaxy"))
+        .paint(|ctx| {
+            ctx.draw(app.world.get_resource::<Galaxy>().unwrap());
+            // let star_index = app.tree.state.selected()[0];
+            // let star = app.game.get_players_stars("Player 1")[star_index];
+            // let star_label_point = get_star_label_point(&star);
+            // ctx.draw(star);
+            // ctx.print(
+            //     star_label_point.0,
+            //     star_label_point.1,
+            //     Span::styled(star.name.clone(), Style::default().fg(Color::White)),
+            // );
         })
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(input, chunks[1]);
-    match app.input_mode {
-        InputMode::Normal =>
-            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-            {}
+        .x_bounds([0.0, 100.0])
+        .y_bounds([0.0, 100.0]);
+    f.render_widget(canvas, f.size());
+}
 
-        InputMode::Editing => {
-            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
-            f.set_cursor(
-                // Put cursor past the end of the input text
-                chunks[1].x + app.input.width() as u16 + 1,
-                // Move one line down, from the border to the input line
-                chunks[1].y + 1,
-            )
+impl Shape for resources::Galaxy {
+    fn draw(&self, painter: &mut Painter) {
+        for x in 0..self.object_grid.len() {
+            for y in 0..self.object_grid[x].len() {
+                if let Some(_) = &self.object_grid[x][y] {
+                    // TODO: Add linear scale to bound x and y to resolution
+                    painter.paint(x, y, Color::Yellow);
+                }
+            }
         }
     }
-
-    let messages: Vec<ListItem> = app
-        .messages
-        .iter()
-        .enumerate()
-        .map(|(i, m)| {
-            let content = vec![Spans::from(Span::raw(format!("{}: {}", i, m)))];
-            ListItem::new(content)
-        })
-        .collect();
-    let messages =
-        List::new(messages).block(Block::default().borders(Borders::ALL).title("Messages"));
-    f.render_widget(messages, chunks[2]);
 }
 
 mod tests {
@@ -223,7 +183,7 @@ mod tests {
         app.update();
 
         let config = app.world.get_resource::<Config>().unwrap();
-        assert_eq!(config.galaxy_dim, 100);
+        assert_eq!(config.galaxy_dim, 10);
     }
 
     #[test]
