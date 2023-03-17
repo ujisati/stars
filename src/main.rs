@@ -9,6 +9,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io;
+use std::io::Write;
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -51,7 +52,38 @@ impl Default for TuiState {
 }
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .format(|buf, record| {
+            let mut level_style = buf.style();
+            let style = match record.level() {
+                log::Level::Error => level_style
+                    .set_color(env_logger::fmt::Color::Red)
+                    .set_bold(true),
+                log::Level::Warn => level_style
+                    .set_color(env_logger::fmt::Color::Yellow)
+                    .set_bold(true),
+                log::Level::Info => level_style
+                    .set_color(env_logger::fmt::Color::Green)
+                    .set_bold(true),
+                log::Level::Debug => level_style
+                    .set_color(env_logger::fmt::Color::Magenta)
+                    .set_bold(true),
+                log::Level::Trace => level_style
+                    .set_color(env_logger::fmt::Color::Blue)
+                    .set_bold(true),
+            };
+            writeln!(
+                buf,
+                "{}:{} {} [{}] {}",
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                style.value(record.level()),
+                record.args()
+            )
+        })
+        .init();
+    log::info!("~~~ welcome to STARS ~~~");
     log::info!("creating bevy app");
     App::new()
         .set_runner(runner)
@@ -66,10 +98,12 @@ fn runner(app: App) {
     // setup terminal
     enable_raw_mode().expect("failed to enter raw mode");
     log::info!("crossterm raw mode enabled");
+
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
         .expect("failed to enter alternate screen or enable mouse capture");
     log::info!("crossterm alternate screen enabled, mouse capture enabled");
+
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).expect("failed to create terminal backend");
     log::info!("terminal backend created");
@@ -77,7 +111,6 @@ fn runner(app: App) {
     // create game loop and run it
     let tui_state = TuiState::default();
     let res = loop_game(&mut terminal, tui_state, app);
-
     if let Err(err) = res {
         println!("{:?}", err)
     }
@@ -141,10 +174,40 @@ fn loop_game<B: Backend>(
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &App) {
+    // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
+    let frame_size = f.size();
     let canvas = Canvas::default()
         .block(Block::default().borders(Borders::ALL).title("Galaxy"))
+        .marker(tui::symbols::Marker::Dot)
         .paint(|ctx| {
-            ctx.draw(app.world.get_resource::<Galaxy>().unwrap());
+            let galaxy = app.world.get_resource::<Galaxy>().unwrap();
+            let mut points = vec![];
+            for x in 0..galaxy.object_grid.len() {
+                for y in 0..galaxy.object_grid[x].len() {
+                    if let Some(_) = &galaxy.object_grid[x][y] {
+                        // TODO: Add linear interpolation to scale x, y
+                        // from range [a,b] (the grid) to range [c,d] (the canvas)
+                        let (a, b) = (0., (galaxy.object_grid.len() - 1) as f64);
+                        let (cx, dx) = (0., frame_size.width as f64);
+                        let (cy, dy) = (0., frame_size.height as f64);
+                        let fx = |p: f64| cx + ((dx - cx) / (b - a)) * (p - a);
+                        let fy = |p: f64| cy + ((dy - cy) / (b - a)) * (p - a);
+                        let point = (fx(x as f64), fy(y as f64));
+                        log::trace!(
+                            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
+                            x,
+                            y,
+                            point.0,
+                            point.1
+                        );
+                        points.push(point);
+                    }
+                }
+            }
+            ctx.draw(&Points {
+                coords: &points,
+                color: Color::Yellow,
+            });
             // let star_index = app.tree.state.selected()[0];
             // let star = app.game.get_players_stars("Player 1")[star_index];
             // let star_label_point = get_star_label_point(&star);
@@ -155,19 +218,24 @@ fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &App) {
             //     Span::styled(star.name.clone(), Style::default().fg(Color::White)),
             // );
         })
-        .x_bounds([0.0, 100.0])
-        .y_bounds([0.0, 100.0]);
+        .x_bounds([0., f.size().width as f64])
+        .y_bounds([0., f.size().height as f64]);
+
     f.render_widget(canvas, f.size());
 }
 
-impl Shape for resources::Galaxy {
+/// A shape to draw a group of points with the given color
+#[derive(Debug, Clone)]
+pub struct Points<'a> {
+    pub coords: &'a Vec<(f64, f64)>,
+    pub color: Color,
+}
+
+impl<'a> Shape for Points<'a> {
     fn draw(&self, painter: &mut Painter) {
-        for x in 0..self.object_grid.len() {
-            for y in 0..self.object_grid[x].len() {
-                if let Some(_) = &self.object_grid[x][y] {
-                    // TODO: Add linear scale to bound x and y to resolution
-                    painter.paint(x, y, Color::Yellow);
-                }
+        for (x, y) in self.coords {
+            if let Some((x, y)) = painter.get_point(*x, *y) {
+                painter.paint(x, y, self.color);
             }
         }
     }

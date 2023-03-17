@@ -15,7 +15,7 @@ pub struct Config {
 impl FromWorld for Config {
     fn from_world(world: &mut World) -> Self {
         log::info!("creating config");
-        Config { galaxy_dim: 10 }
+        Config { galaxy_dim: 25 }
     }
 }
 
