@@ -8,8 +8,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io;
+use rand::Rng;
 use std::io::Write;
+use std::{collections::HashSet, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -88,9 +89,9 @@ fn main() {
     App::new()
         .set_runner(runner)
         .init_resource::<resources::Config>()
-        .init_resource::<resources::Galaxy>()
         // .add_plugins(MinimalPlugins)
         // for some reason, adding minimal plugins causes the crossterm backend to not render
+        .add_startup_system(spawn_galaxy)
         .run();
 }
 
@@ -135,7 +136,7 @@ fn loop_game<B: Backend>(
         log::info!("beginning game loop");
 
         log::info!("drawing ui");
-        terminal.draw(|f| ui(f, &tui_state, &app))?;
+        terminal.draw(|f| ui(f, &tui_state, &mut app))?;
 
         log::info!("reading input");
         if let Event::Key(key) = event::read()? {
@@ -173,37 +174,14 @@ fn loop_game<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &App) {
+fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
     // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
     let frame_size = f.size();
+    let points = get_star_ui_points(app, frame_size);
     let canvas = Canvas::default()
         .block(Block::default().borders(Borders::ALL).title("Galaxy"))
         .marker(tui::symbols::Marker::Dot)
         .paint(|ctx| {
-            let galaxy = app.world.get_resource::<Galaxy>().unwrap();
-            let mut points = vec![];
-            for x in 0..galaxy.object_grid.len() {
-                for y in 0..galaxy.object_grid[x].len() {
-                    if let Some(_) = &galaxy.object_grid[x][y] {
-                        // TODO: Add linear interpolation to scale x, y
-                        // from range [a,b] (the grid) to range [c,d] (the canvas)
-                        let (a, b) = (0., (galaxy.object_grid.len() - 1) as f64);
-                        let (cx, dx) = (0., frame_size.width as f64);
-                        let (cy, dy) = (0., frame_size.height as f64);
-                        let fx = |p: f64| cx + ((dx - cx) / (b - a)) * (p - a);
-                        let fy = |p: f64| cy + ((dy - cy) / (b - a)) * (p - a);
-                        let point = (fx(x as f64), fy(y as f64));
-                        log::trace!(
-                            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
-                            x,
-                            y,
-                            point.0,
-                            point.1
-                        );
-                        points.push(point);
-                    }
-                }
-            }
             ctx.draw(&Points {
                 coords: &points,
                 color: Color::Yellow,
@@ -224,6 +202,38 @@ fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &App) {
     f.render_widget(canvas, f.size());
 }
 
+fn get_star_ui_points(app: &mut App, frame_size: tui::layout::Rect) -> Vec<(f64, f64)> {
+    let mut galactic_obj_query = app
+        .world
+        .query::<(&components::astronomy::GalacticObj, &components::Location)>();
+    let config = app
+        .world
+        .get_resource::<resources::Config>()
+        .expect("config not found");
+    let mut points = vec![];
+    for (_, loc) in galactic_obj_query.iter(&app.world) {
+        // Add linear interpolation to scale x, y
+        // from range [a,b] (the grid) to range [c,d] (the canvas)
+        let x = loc.x as f64;
+        let y = loc.y as f64;
+        let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
+        let (cx, dx) = (0., frame_size.width as f64);
+        let (cy, dy) = (0., frame_size.height as f64);
+        let fx = |p: f64| cx + ((dx - cx) / (b - a)) * (p - a);
+        let fy = |p: f64| cy + ((dy - cy) / (b - a)) * (p - a);
+        let point = (fx(x), fy(y));
+        log::trace!(
+            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
+            x,
+            y,
+            point.0,
+            point.1
+        );
+        points.push(point);
+    }
+    points
+}
+
 /// A shape to draw a group of points with the given color
 #[derive(Debug, Clone)]
 pub struct Points<'a> {
@@ -241,6 +251,35 @@ impl<'a> Shape for Points<'a> {
     }
 }
 
+fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
+    let mut rng = rand::thread_rng();
+    // TODO: num stars isn't guaranteed to be accurate because any location collisions will be passed
+    let mut used_locations = HashSet::new();
+    for _ in 0..config.num_stars {
+        let x = rng.gen_range(0..config.galaxy_dimension);
+        let y = rng.gen_range(0..config.galaxy_dimension);
+        let is_used = used_locations.insert((x, y));
+        log::trace!("used_locations: {:?}", used_locations);
+        if is_used {
+            log::trace!("location ({}, {}) is already used", x, y);
+            continue;
+        }
+        let obj = components::astronomy::GalacticObj::Star;
+        let ui_offset = (rng.gen_range(-0.1..0.1), rng.gen_range(-0.1..0.1));
+        commands.spawn((
+            components::Location {
+                x,
+                y,
+                w: 0,
+                z: 0,
+                ui_offset,
+            },
+            obj,
+        ));
+    }
+    log::info!("spawned {} stars", config.num_stars);
+}
+
 mod tests {
     use super::*;
 
@@ -251,16 +290,6 @@ mod tests {
         app.update();
 
         let config = app.world.get_resource::<Config>().unwrap();
-        assert_eq!(config.galaxy_dim, 10);
-    }
-
-    #[test]
-    fn test_galaxy() {
-        let mut app = App::new();
-        app.init_resource::<Config>().init_resource::<Galaxy>();
-        app.update();
-
-        let galaxy = app.world.get_resource::<Galaxy>().unwrap();
-        assert_eq!(galaxy.object_grid.len(), 10);
+        assert_eq!(config.galaxy_dimension, 10);
     }
 }

@@ -10,12 +10,13 @@ enum Structure {
     SignalJammer,
 }
 
-
 #[derive(Component)]
-struct Location {
-    star_x: usize,
-    star_y: usize,
-    planet_z: usize,
+pub struct Location {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+    pub w: u32,
+    pub ui_offset: (f32, f32)
 }
 
 #[derive(Component)]
@@ -31,13 +32,21 @@ struct Visibility {
     range: u32,
 }
 
-mod astronomy {
-    enum AstronomicalObject {
+pub mod astronomy {
+    use super::*;
+
+    #[derive(Component)]
+    pub enum GalacticObj {
         Star,
-        Planet,
-        Moon,
+        SupermassiveBlackHole,
         BlackHole,
         Nebula,
+    }
+
+    #[derive(Component)]
+    pub enum StellarObj {
+        Planet,
+        Moon,
         AsteroidBelt,
     }
 }
@@ -85,9 +94,6 @@ mod ship {
         defense_system: DefenseSystem,
     }
 
-
     #[derive(Component)]
-    struct Probe {
-                  
-    }
+    struct Probe {}
 }
