@@ -1,7 +1,7 @@
 mod bundles;
 mod components;
 mod resources;
-mod tech;
+mod utilities;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -28,6 +28,8 @@ use bevy::prelude::*;
 use log;
 use rand::prelude::*;
 use resources::*;
+use utilities::names::*;
+
 enum InputMode {
     Normal,
     Editing,
@@ -263,6 +265,7 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
             choices[dist.sample(&mut rng)],
             choices[dist.sample(&mut rng)],
         );
+        let star_name = random_name();
         commands.spawn((
             components::Location {
                 x,
@@ -272,8 +275,10 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
                 ui_offset,
             },
             components::astronomy::GalacticObj::Star,
+            components::Name(star_name.clone()),
         ));
         star_count += 1;
+        log::trace!("spawned star {} at ({}, {})", star_name, x, y); 
     }
     log::info!("spawned {} stars", config.num_stars);
 }

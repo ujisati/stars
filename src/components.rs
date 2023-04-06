@@ -1,4 +1,3 @@
-use crate::tech;
 use bevy::prelude::*;
 
 enum Structure {
@@ -16,13 +15,16 @@ pub struct Location {
     pub y: u32,
     pub z: u32,
     pub w: u32,
-    pub ui_offset: (f32, f32)
+    pub ui_offset: (f32, f32),
 }
 
 #[derive(Component)]
 struct Player {
     name: String,
 }
+
+#[derive(Component)]
+pub struct Name(pub String);
 
 #[derive(Component)]
 struct Visibility {
