@@ -1,6 +1,8 @@
 mod bundles;
 mod components;
+mod keymaps;
 mod resources;
+mod ui;
 mod utilities;
 
 use crossterm::{
@@ -30,28 +32,11 @@ use rand::prelude::*;
 use resources::*;
 use utilities::names::*;
 
+use components as cmp;
+
 enum InputMode {
     Normal,
     Editing,
-}
-
-struct TuiState {
-    /// Current value of the input box
-    input: String,
-    /// Current input mode
-    input_mode: InputMode,
-    /// History of recorded messages
-    messages: Vec<String>,
-}
-
-impl Default for TuiState {
-    fn default() -> TuiState {
-        TuiState {
-            input: String::new(),
-            input_mode: InputMode::Normal,
-            messages: Vec::new(),
-        }
-    }
 }
 
 fn main() {
@@ -110,9 +95,8 @@ fn runner(app: App) {
     let mut terminal = Terminal::new(backend).expect("failed to create terminal backend");
     log::info!("terminal backend created");
 
-    // create game loop and run it
-    let tui_state = TuiState::default();
-    let res = loop_game(&mut terminal, tui_state, app);
+
+    let res = loop_game(&mut terminal, app);
     if let Err(err) = res {
         println!("{:?}", err)
     }
@@ -128,118 +112,30 @@ fn runner(app: App) {
     terminal.show_cursor().expect("failed to show cursor");
 }
 
-fn loop_game<B: Backend>(
-    terminal: &mut Terminal<B>,
-    mut tui_state: TuiState,
-    mut app: App,
-) -> io::Result<()> {
+fn loop_game<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    log::info!("first bevy update");
+    app.update();
+
+    log::info!("initializing ui");
+    let mut tui_state = ui::TuiState::new(&mut app);
+
+    log::info!("beginning game loop");
     loop {
-        log::info!("beginning game loop");
-
         log::info!("drawing ui");
-        terminal.draw(|f| ui(f, &tui_state, &mut app))?;
 
+        terminal.draw(|f| ui::ui(f, &tui_state, &mut app))?;
         log::info!("reading input");
         if let Event::Key(key) = event::read()? {
-            match tui_state.input_mode {
-                InputMode::Normal => match key.code {
-                    KeyCode::Char('e') => {
-                        tui_state.input_mode = InputMode::Editing;
-                    }
-                    KeyCode::Char('q') => {
-                        return Ok(());
-                    }
-                    _ => {}
-                },
-                InputMode::Editing => match key.code {
-                    KeyCode::Enter => {
-                        tui_state.messages.push(tui_state.input.drain(..).collect());
-                    }
-                    KeyCode::Char(c) => {
-                        tui_state.input.push(c);
-                    }
-                    KeyCode::Backspace => {
-                        tui_state.input.pop();
-                    }
-                    KeyCode::Esc => {
-                        tui_state.input_mode = InputMode::Normal;
-                    }
-                    _ => {}
-                },
+            if key.code == KeyCode::Char('q') {
+                log::info!("quitting game");
+                // TODO: autosave
+                return Ok(());
             }
+            keymaps::handle_key_event(key, &mut tui_state, &mut app);
         }
 
-        // update bevy
         log::info!("updating bevy");
         app.update();
-    }
-}
-
-fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
-    // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
-    let frame_size = f.size();
-    let points = get_star_ui_points(app, frame_size);
-    let canvas = Canvas::default()
-        .block(Block::default().borders(Borders::ALL).title("Galaxy"))
-        .marker(tui::symbols::Marker::Dot)
-        .paint(|ctx| {
-            ctx.draw(&Points {
-                coords: &points,
-                color: Color::Yellow,
-            });
-        })
-        .x_bounds([0., f.size().width as f64])
-        .y_bounds([0., f.size().height as f64]);
-
-    f.render_widget(canvas, f.size());
-}
-
-fn get_star_ui_points(app: &mut App, frame_size: tui::layout::Rect) -> Vec<(f64, f64)> {
-    let mut galactic_obj_query = app
-        .world
-        .query::<(&components::astronomy::GalacticObj, &components::Location)>();
-    let config = app
-        .world
-        .get_resource::<resources::Config>()
-        .expect("config not found");
-    let mut points = vec![];
-    for (_, loc) in galactic_obj_query.iter(&app.world) {
-        // Add linear interpolation to scale x, y
-        // from range [a,b] (the grid) to range [c,d] (the canvas)
-        let x = (loc.x as f64 + loc.ui_offset.0 as f64).clamp(0., frame_size.width as f64);
-        let y = (loc.y as f64 + loc.ui_offset.1 as f64).clamp(0., frame_size.height as f64);
-        let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
-        let (cx, dx) = (0., frame_size.width as f64);
-        let (cy, dy) = (0., frame_size.height as f64);
-        let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
-        let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
-        let canvas_point = (f_of_x(x), f_of_y(y));
-        log::trace!(
-            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
-            x,
-            y,
-            canvas_point.0,
-            canvas_point.1
-        );
-        points.push(canvas_point);
-    }
-    points
-}
-
-/// A shape to draw a group of points with the given color
-#[derive(Debug, Clone)]
-pub struct Points<'a> {
-    pub coords: &'a Vec<(f64, f64)>,
-    pub color: Color,
-}
-
-impl<'a> Shape for Points<'a> {
-    fn draw(&self, painter: &mut Painter) {
-        for (x, y) in self.coords {
-            if let Some((x, y)) = painter.get_point(*x, *y) {
-                painter.paint(x, y, self.color);
-            }
-        }
     }
 }
 
@@ -278,7 +174,7 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
             components::Name(star_name.clone()),
         ));
         star_count += 1;
-        log::trace!("spawned star {} at ({}, {})", star_name, x, y); 
+        log::trace!("spawned star {} at ({}, {})", star_name, x, y);
     }
     log::info!("spawned {} stars", config.num_stars);
 }
