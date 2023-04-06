@@ -26,8 +26,8 @@ use unicode_width::UnicodeWidthStr;
 
 use bevy::prelude::*;
 use log;
+use rand::prelude::*;
 use resources::*;
-
 enum InputMode {
     Normal,
     Editing,
@@ -90,7 +90,6 @@ fn main() {
         .set_runner(runner)
         .init_resource::<resources::Config>()
         // .add_plugins(MinimalPlugins)
-        // for some reason, adding minimal plugins causes the crossterm backend to not render
         .add_startup_system(spawn_galaxy)
         .run();
 }
@@ -186,15 +185,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
                 coords: &points,
                 color: Color::Yellow,
             });
-            // let star_index = app.tree.state.selected()[0];
-            // let star = app.game.get_players_stars("Player 1")[star_index];
-            // let star_label_point = get_star_label_point(&star);
-            // ctx.draw(star);
-            // ctx.print(
-            //     star_label_point.0,
-            //     star_label_point.1,
-            //     Span::styled(star.name.clone(), Style::default().fg(Color::White)),
-            // );
         })
         .x_bounds([0., f.size().width as f64])
         .y_bounds([0., f.size().height as f64]);
@@ -214,22 +204,22 @@ fn get_star_ui_points(app: &mut App, frame_size: tui::layout::Rect) -> Vec<(f64,
     for (_, loc) in galactic_obj_query.iter(&app.world) {
         // Add linear interpolation to scale x, y
         // from range [a,b] (the grid) to range [c,d] (the canvas)
-        let x = loc.x as f64;
-        let y = loc.y as f64;
+        let x = (loc.x as f64 + loc.ui_offset.0 as f64).clamp(0., frame_size.width as f64);
+        let y = (loc.y as f64 + loc.ui_offset.1 as f64).clamp(0., frame_size.height as f64);
         let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
         let (cx, dx) = (0., frame_size.width as f64);
         let (cy, dy) = (0., frame_size.height as f64);
-        let fx = |p: f64| cx + ((dx - cx) / (b - a)) * (p - a);
-        let fy = |p: f64| cy + ((dy - cy) / (b - a)) * (p - a);
-        let point = (fx(x), fy(y));
+        let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
+        let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
+        let canvas_point = (f_of_x(x), f_of_y(y));
         log::trace!(
             "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
             x,
             y,
-            point.0,
-            point.1
+            canvas_point.0,
+            canvas_point.1
         );
-        points.push(point);
+        points.push(canvas_point);
     }
     points
 }
@@ -252,20 +242,27 @@ impl<'a> Shape for Points<'a> {
 }
 
 fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
-    let mut rng = rand::thread_rng();
-    // TODO: num stars isn't guaranteed to be accurate because any location collisions will be passed
-    let mut used_locations = HashSet::new();
-    for _ in 0..config.num_stars {
+    // TODO: add randomness and pre-made patterns
+    let mut rng = thread_rng();
+    let mut star_count = 0;
+    let mut used_dimensions = HashSet::new();
+    while star_count < config.num_stars {
         let x = rng.gen_range(0..config.galaxy_dimension);
         let y = rng.gen_range(0..config.galaxy_dimension);
-        let is_used = used_locations.insert((x, y));
-        log::trace!("used_locations: {:?}", used_locations);
-        if is_used {
-            log::trace!("location ({}, {}) is already used", x, y);
+        if used_dimensions.contains(&(x, y)) {
             continue;
         }
-        let obj = components::astronomy::GalacticObj::Star;
-        let ui_offset = (rng.gen_range(-0.1..0.1), rng.gen_range(-0.1..0.1));
+        used_dimensions.insert((x, y));
+
+        // get ui offset
+        let choices = [0.1, 0.2, 0.3];
+        let weights = [3, 2, 1];
+        let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
+
+        let ui_offset = (
+            choices[dist.sample(&mut rng)],
+            choices[dist.sample(&mut rng)],
+        );
         commands.spawn((
             components::Location {
                 x,
@@ -274,22 +271,40 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
                 z: 0,
                 ui_offset,
             },
-            obj,
+            components::astronomy::GalacticObj::Star,
         ));
+        star_count += 1;
     }
     log::info!("spawned {} stars", config.num_stars);
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    use pretty_assertions::assert_eq;
+
     #[test]
-    fn test_config() {
+    fn test_default_config() {
         let mut app = App::new();
         app.init_resource::<Config>();
         app.update();
 
-        let config = app.world.get_resource::<Config>().unwrap();
-        assert_eq!(config.galaxy_dimension, 10);
+        let config = app.world.get_resource::<Config>();
+        assert!(config.is_some());
+    }
+
+    #[test]
+    fn test_spawn_galaxy() {
+        let mut app = App::new();
+        app.init_resource::<Config>()
+            .add_plugins(MinimalPlugins)
+            .add_startup_system(spawn_galaxy);
+
+        let mut galactic_obj_query = app.world.query::<&components::astronomy::GalacticObj>();
+        assert_eq!(galactic_obj_query.iter(&app.world).count(), 0);
+
+        app.update();
+        assert_eq!(galactic_obj_query.iter(&app.world).count(), 100);
     }
 }
