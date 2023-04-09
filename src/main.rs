@@ -30,7 +30,6 @@ use bevy::prelude::*;
 use log;
 use rand::prelude::*;
 use resources::*;
-use utilities::names::*;
 
 use components as cmp;
 
@@ -76,6 +75,7 @@ fn main() {
     App::new()
         .set_runner(runner)
         .init_resource::<resources::Config>()
+        .init_resource::<resources::NameGenerator>()
         // .add_plugins(MinimalPlugins)
         .add_startup_system(spawn_galaxy)
         .run();
@@ -94,7 +94,6 @@ fn runner(app: App) {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).expect("failed to create terminal backend");
     log::info!("terminal backend created");
-
 
     let res = loop_game(&mut terminal, app);
     if let Err(err) = res {
@@ -139,7 +138,7 @@ fn loop_game<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result
     }
 }
 
-fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
+fn spawn_galaxy(mut commands: Commands, config: Res<Config>, mut name_generator: ResMut<NameGenerator>) {
     // TODO: add randomness and pre-made patterns
     let mut rng = thread_rng();
     let mut star_count = 0;
@@ -153,15 +152,16 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>) {
         used_dimensions.insert((x, y));
 
         // get ui offset
-        let choices = [0.1, 0.2, 0.3];
-        let weights = [3, 2, 1];
+        let choices = [0.5, 1., 2.];
+        let weights = [1, 2, 3];
         let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
+        let is_negative = if rng.gen_bool(0.5) { -1.0 } else { 1.0 };
 
         let ui_offset = (
-            choices[dist.sample(&mut rng)],
-            choices[dist.sample(&mut rng)],
+            choices[dist.sample(&mut rng)] * is_negative,
+            choices[dist.sample(&mut rng)] * is_negative,
         );
-        let star_name = random_name();
+        let star_name = name_generator.random_name();
         commands.spawn((
             components::Location {
                 x,

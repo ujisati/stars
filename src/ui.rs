@@ -29,6 +29,7 @@ pub enum View {
 #[derive(PartialEq)]
 pub enum Modal {
     Help,
+    SearchObj,
     Off,
 }
 
@@ -36,11 +37,26 @@ pub struct GalaxyView {
     pub astro_objs: Vec<(u32, u32)>,
     pub selected_astro_obj: Option<(u32, u32)>,
     pub selected_idx: usize,
+    pub target_astro_obj: Option<(u32, u32)>,
+    pub show_ids: bool,
+    pub origin: (f64, f64),
+}
+
+impl Default for GalaxyView {
+    fn default() -> GalaxyView {
+        GalaxyView {
+            astro_objs: Vec::new(),
+            selected_astro_obj: None,
+            selected_idx: 0,
+            target_astro_obj: None,
+            show_ids: false,
+            origin: (0., 0.),
+        }
+    }
 }
 
 impl TuiState {
     pub fn new(app: &mut App) -> TuiState {
-        // create game loop and run it
         let astro_objs: Vec<(u32, u32)> = app
             .world
             .query::<(&cmp::astronomy::GalacticObj, &cmp::Location)>()
@@ -52,8 +68,9 @@ impl TuiState {
                 selected_idx: 0,
                 selected_astro_obj: Some(astro_objs[0]),
                 astro_objs,
+                ..GalaxyView::default()
             },
-            ..Default::default()
+            ..TuiState::default()
         }
     }
 }
@@ -64,9 +81,7 @@ impl Default for TuiState {
             active_modal: Modal::Off,
             active_view: View::Galaxy,
             galaxy_view: GalaxyView {
-                astro_objs: Vec::new(),
-                selected_astro_obj: None,
-                selected_idx: 0,
+                ..GalaxyView::default()
             },
         }
     }
@@ -75,7 +90,7 @@ impl Default for TuiState {
 pub fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
     // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
     let frame_size = f.size();
-    let points = get_star_ui_points(app, frame_size);
+    let points = get_star_ui_points(app, frame_size, tui_state.galaxy_view.origin, 1.);
     let canvas = Canvas::default()
         .block(Block::default().borders(Borders::ALL).title("Galaxy"))
         .marker(tui::symbols::Marker::Dot)
@@ -103,11 +118,15 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
         f.render_widget(Clear, area); //this clears out the background
         f.render_widget(paragraph, area);
     }
+
+    //
 }
 
 pub fn get_star_ui_points(
     app: &mut App,
     frame_size: tui::layout::Rect,
+    origin: (f64, f64),
+    scale: f64,
 ) -> Vec<(&cmp::Location, (f64, f64))> {
     let mut galactic_obj_query = app
         .world
@@ -117,14 +136,17 @@ pub fn get_star_ui_points(
         .get_resource::<resources::Config>()
         .expect("config not found");
     let mut points = vec![];
+    // TODO: to create a scale, we basically increase the bounds (they will extend past frame size but still from 0,0)
+    // TODO: to create a center, we need to offset the origin by the x and y distance of the obj from the center
+    // TODO: to move camera, we offset the origin
     for (_, loc) in galactic_obj_query.iter(&app.world) {
         // Add linear interpolation to scale x, y
         // from range [a,b] (the grid) to range [c,d] (the canvas)
         let x = (loc.x as f64 + loc.ui_offset.0 as f64).clamp(0., frame_size.width as f64);
         let y = (loc.y as f64 + loc.ui_offset.1 as f64).clamp(0., frame_size.height as f64);
         let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
-        let (cx, dx) = (0., frame_size.width as f64);
-        let (cy, dy) = (0., frame_size.height as f64);
+        let (cx, dx) = (origin.0, frame_size.width as f64 + origin.0 * scale);
+        let (cy, dy) = (origin.1, frame_size.height as f64 + origin.1 * scale);
         let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
         let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
         let canvas_point = (f_of_x(x), f_of_y(y));

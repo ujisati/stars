@@ -24,26 +24,17 @@ pub fn handle_key_event(key: event::KeyEvent, tui_state: &mut ui::TuiState, app:
                 log_key_event("show help");
                 return;
             }
-            event::KeyCode::Left => {
-                if tui_state.active_view == ui::View::Galaxy {
-                    // TODO: the selected is good, but scrolling with arrows is WRONG HERE. USE LEFT RIGHT UP DOWN ON SORTED ASTRO_OBJS
-                    tui_state.galaxy_view.selected_astro_obj = Some(
-                        tui_state.galaxy_view.astro_objs[(tui_state.galaxy_view.selected_idx - 1)
-                            % (tui_state.galaxy_view.astro_objs.len() - 1)],
-                    );
-                    log_key_event("previous astro obj");
-                    return;
-                }
+            event::KeyCode::Left if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.origin.0 -= 1.; 
             }
-            event::KeyCode::Right => {
-                if tui_state.active_view == ui::View::Galaxy {
-                    tui_state.galaxy_view.selected_astro_obj = Some(
-                        tui_state.galaxy_view.astro_objs[(tui_state.galaxy_view.selected_idx + 1)
-                            % (tui_state.galaxy_view.astro_objs.len() - 1)],
-                    );
-                    log_key_event("next astro obj");
-                    return;
-                }
+            event::KeyCode::Right if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.origin.0 += 1.;
+            }
+            event::KeyCode::Up if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.origin.1 += 1.;
+            }
+            event::KeyCode::Down if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.origin.1 -= 1.;
             }
             _ => {}
         },
