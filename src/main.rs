@@ -152,8 +152,8 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>, mut name_generator:
         used_dimensions.insert((x, y));
 
         // get ui offset
-        let choices = [0.5, 1., 2.];
-        let weights = [1, 2, 3];
+        let choices = [0.25, 0.5, 1.];
+        let weights = [3,2,1];
         let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
         let is_negative = if rng.gen_bool(0.5) { -1.0 } else { 1.0 };
 

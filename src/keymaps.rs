@@ -25,16 +25,26 @@ pub fn handle_key_event(key: event::KeyEvent, tui_state: &mut ui::TuiState, app:
                 return;
             }
             event::KeyCode::Left if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.0 -= 1.; 
+                tui_state.galaxy_view.origin.0 += 1.; 
             }
             event::KeyCode::Right if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.0 += 1.;
+                tui_state.galaxy_view.origin.0 -= 1.;
             }
             event::KeyCode::Up if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.1 += 1.;
+                tui_state.galaxy_view.origin.1 -= 1.;
             }
             event::KeyCode::Down if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.origin.1 += 1.;
+            }
+            event::KeyCode::Char('i') if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.scale = (tui_state.galaxy_view.scale + 0.25).clamp(1., 4.);
+                tui_state.galaxy_view.origin.0 -= 1.;
                 tui_state.galaxy_view.origin.1 -= 1.;
+            }
+            event::KeyCode::Char('o') if tui_state.active_view == ui::View::Galaxy => {
+                tui_state.galaxy_view.scale = (tui_state.galaxy_view.scale - 0.25).clamp(1., 4.);
+                tui_state.galaxy_view.origin.0 += 0.25;
+                tui_state.galaxy_view.origin.1 += 0.25;
             }
             _ => {}
         },

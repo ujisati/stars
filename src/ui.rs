@@ -4,7 +4,7 @@ use tui::{
     style::Color,
     text::Spans,
     widgets::{
-        canvas::{Canvas, Painter, Shape},
+        canvas::{Canvas, Painter, Shape, Line},
         Block, Borders, Clear, Paragraph,
     },
     Frame,
@@ -40,6 +40,7 @@ pub struct GalaxyView {
     pub target_astro_obj: Option<(u32, u32)>,
     pub show_ids: bool,
     pub origin: (f64, f64),
+    pub scale: f64,
 }
 
 impl Default for GalaxyView {
@@ -51,6 +52,7 @@ impl Default for GalaxyView {
             target_astro_obj: None,
             show_ids: false,
             origin: (0., 0.),
+            scale: 1.,
         }
     }
 }
@@ -90,15 +92,27 @@ impl Default for TuiState {
 pub fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
     // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
     let frame_size = f.size();
-    let points = get_star_ui_points(app, frame_size, tui_state.galaxy_view.origin, 1.);
+    let points = get_star_ui_points(
+        app,
+        frame_size,
+        tui_state.galaxy_view.origin,
+        tui_state.galaxy_view.scale,
+    );
     let canvas = Canvas::default()
         .block(Block::default().borders(Borders::ALL).title("Galaxy"))
-        .marker(tui::symbols::Marker::Dot)
+        .marker(tui::symbols::Marker::Braille)
         .paint(|ctx| {
             ctx.draw(&Points {
                 coords: &points,
                 color: Color::Yellow,
                 selected_astro_obj: tui_state.galaxy_view.selected_astro_obj,
+            });
+            ctx.draw(&Line {
+                x1: 0.,
+                y1: 10.,
+                y2: 10.,
+                x2: 0.,
+                color: Color::LightBlue,
             });
         })
         .x_bounds([0., f.size().width as f64])
@@ -139,14 +153,16 @@ pub fn get_star_ui_points(
     // TODO: to create a scale, we basically increase the bounds (they will extend past frame size but still from 0,0)
     // TODO: to create a center, we need to offset the origin by the x and y distance of the obj from the center
     // TODO: to move camera, we offset the origin
+    // TODO: SOME STARS ARE BEHIND OTHERS BECAUSE IT SEEMS IN SOME POSITIONS THEY COLLAPSE INTO ONE POINT
+    // SCALE IS SHEARING OR SOMETHING
     for (_, loc) in galactic_obj_query.iter(&app.world) {
-        // Add linear interpolation to scale x, y
+        // Add linear interpolation to scale x, y (world coords + ui offset)
         // from range [a,b] (the grid) to range [c,d] (the canvas)
-        let x = (loc.x as f64 + loc.ui_offset.0 as f64).clamp(0., frame_size.width as f64);
-        let y = (loc.y as f64 + loc.ui_offset.1 as f64).clamp(0., frame_size.height as f64);
-        let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
-        let (cx, dx) = (origin.0, frame_size.width as f64 + origin.0 * scale);
-        let (cy, dy) = (origin.1, frame_size.height as f64 + origin.1 * scale);
+        let x = (loc.x as f64 + loc.ui_offset.0 as f64);
+        let y = (loc.y as f64 + loc.ui_offset.1 as f64);
+        let (a, b) = (-10., config.galaxy_dimension as f64 + 10.);
+        let (cx, dx) = (origin.0, (frame_size.width as f64 + origin.0) * scale);
+        let (cy, dy) = (origin.1, (frame_size.height as f64 + origin.1) * scale);
         let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
         let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
         let canvas_point = (f_of_x(x), f_of_y(y));
