@@ -4,7 +4,7 @@ use tui::{
     style::Color,
     text::Spans,
     widgets::{
-        canvas::{Canvas, Painter, Shape, Line},
+        canvas::{Canvas, Line, Painter, Shape},
         Block, Borders, Clear, Paragraph,
     },
     Frame,
@@ -19,6 +19,7 @@ pub struct TuiState {
     pub active_modal: Modal,
     pub active_view: View,
     pub galaxy_view: GalaxyView,
+    pub frame_size: (u16, u16),
 }
 
 #[derive(PartialEq)]
@@ -40,6 +41,7 @@ pub struct GalaxyView {
     pub target_astro_obj: Option<(u32, u32)>,
     pub show_ids: bool,
     pub origin: (f64, f64),
+    pub origin_pan: (f64, f64),
     pub scale: f64,
 }
 
@@ -52,6 +54,7 @@ impl Default for GalaxyView {
             target_astro_obj: None,
             show_ids: false,
             origin: (0., 0.),
+            origin_pan: (0., 0.),
             scale: 1.,
         }
     }
@@ -85,97 +88,20 @@ impl Default for TuiState {
             galaxy_view: GalaxyView {
                 ..GalaxyView::default()
             },
+            frame_size: (0, 0),
         }
     }
 }
 
-pub fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
-    // TODO: 1. Canvas views (Galaxy, AstroObject), Informational popup, galaxy go-to by name (or id)
-    let frame_size = f.size();
-    let points = get_star_ui_points(
-        app,
-        frame_size,
-        tui_state.galaxy_view.origin,
-        tui_state.galaxy_view.scale,
-    );
-    let canvas = Canvas::default()
-        .block(Block::default().borders(Borders::ALL).title("Galaxy"))
-        .marker(tui::symbols::Marker::Braille)
-        .paint(|ctx| {
-            ctx.draw(&Points {
-                coords: &points,
-                color: Color::Yellow,
-                selected_astro_obj: tui_state.galaxy_view.selected_astro_obj,
-            });
-            ctx.draw(&Line {
-                x1: 0.,
-                y1: 10.,
-                y2: 10.,
-                x2: 0.,
-                color: Color::LightBlue,
-            });
-        })
-        .x_bounds([0., f.size().width as f64])
-        .y_bounds([0., f.size().height as f64]);
-
-    f.render_widget(canvas, f.size());
-
-    if tui_state.active_modal == Modal::Help {
-        let block = Block::default().title("Help").borders(Borders::ALL);
-        let area = centered_rect(60, 20, f.size());
-        // add text to the area
-        let text = vec![
-            Spans::from("Press 'q' to quit"),
-            Spans::from("Press 'h' to toggle this help menu"),
-        ];
-        let paragraph = Paragraph::new(text.clone()).block(block);
-        f.render_widget(Clear, area); //this clears out the background
-        f.render_widget(paragraph, area);
+pub fn ui<B: Backend>(f: &mut Frame<B>, tui_state: &mut TuiState, app: &mut App) {
+    match tui_state.active_view {
+        View::Galaxy => draw_galaxy_view(f, tui_state, app),
+        _ => {}
     }
-
-    //
-}
-
-pub fn get_star_ui_points(
-    app: &mut App,
-    frame_size: tui::layout::Rect,
-    origin: (f64, f64),
-    scale: f64,
-) -> Vec<(&cmp::Location, (f64, f64))> {
-    let mut galactic_obj_query = app
-        .world
-        .query::<(&cmp::astronomy::GalacticObj, &cmp::Location)>();
-    let config = app
-        .world
-        .get_resource::<resources::Config>()
-        .expect("config not found");
-    let mut points = vec![];
-    // TODO: to create a scale, we basically increase the bounds (they will extend past frame size but still from 0,0)
-    // TODO: to create a center, we need to offset the origin by the x and y distance of the obj from the center
-    // TODO: to move camera, we offset the origin
-    // TODO: SOME STARS ARE BEHIND OTHERS BECAUSE IT SEEMS IN SOME POSITIONS THEY COLLAPSE INTO ONE POINT
-    // SCALE IS SHEARING OR SOMETHING
-    for (_, loc) in galactic_obj_query.iter(&app.world) {
-        // Add linear interpolation to scale x, y (world coords + ui offset)
-        // from range [a,b] (the grid) to range [c,d] (the canvas)
-        let x = (loc.x as f64 + loc.ui_offset.0 as f64);
-        let y = (loc.y as f64 + loc.ui_offset.1 as f64);
-        let (a, b) = (-10., config.galaxy_dimension as f64 + 10.);
-        let (cx, dx) = (origin.0, (frame_size.width as f64 + origin.0) * scale);
-        let (cy, dy) = (origin.1, (frame_size.height as f64 + origin.1) * scale);
-        let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
-        let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
-        let canvas_point = (f_of_x(x), f_of_y(y));
-        log::trace!(
-            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
-            x,
-            y,
-            canvas_point.0,
-            canvas_point.1
-        );
-        points.push((loc, canvas_point));
+    match tui_state.active_modal {
+        Modal::Help => draw_help_modal(f, tui_state, app),
+        _ => {}
     }
-    points
 }
 
 #[derive(Debug, Clone)]
@@ -225,4 +151,73 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: layout::Rect) -> layout::Rec
             .as_ref(),
         )
         .split(popup_layout[1])[1]
+}
+
+fn draw_galaxy_view<B: Backend>(f: &mut Frame<B>, tui_state: &mut TuiState, app: &mut App) {
+    let frame_size = f.size();
+    tui_state.frame_size = (frame_size.width, frame_size.height);
+    let mut galactic_obj_query = app
+        .world
+        .query::<(&cmp::astronomy::GalacticObj, &cmp::Location)>();
+    let config = app
+        .world
+        .get_resource::<resources::Config>()
+        .expect("config not found");
+    let mut points = vec![];
+    let origin = tui_state.galaxy_view.origin;
+    let scale = tui_state.galaxy_view.scale;
+    for (_, loc) in galactic_obj_query.iter(&app.world) {
+        // Add linear interpolation to scale x, y (world coords + ui offset)
+        // from range [a,b] (the grid) to range [c,d] (the canvas)
+        let x = (loc.x as f64 + loc.ui_offset.0 as f64);
+        let y = (loc.y as f64 + loc.ui_offset.1 as f64);
+        let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
+        let (cx, dx) = (origin.0 , (frame_size.width as f64 * scale) + origin.0);
+        let (cy, dy) = (origin.1, (frame_size.height as f64 * scale) + origin.1);
+        let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
+        let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
+        let canvas_point = (f_of_x(x), f_of_y(y));
+        log::trace!(
+            "scaling astro_grid point ({}, {}) to canvas point ({}, {})",
+            x,
+            y,
+            canvas_point.0,
+            canvas_point.1
+        );
+        points.push((loc, canvas_point));
+    }
+    let canvas = Canvas::default()
+        .block(Block::default().borders(Borders::ALL).title("Galaxy"))
+        .marker(tui::symbols::Marker::Braille)
+        .paint(|ctx| {
+            ctx.draw(&Points {
+                coords: &points,
+                color: Color::Yellow,
+                selected_astro_obj: tui_state.galaxy_view.selected_astro_obj,
+            });
+            // ctx.draw(&Line {
+            //     x1: 0.,
+            //     y1: 10.,
+            //     y2: 10.,
+            //     x2: 0.,
+            //     color: Color::LightBlue,
+            // });
+        })
+        .x_bounds([0., f.size().width as f64])
+        .y_bounds([0., f.size().height as f64]);
+
+    f.render_widget(canvas, f.size());
+}
+
+fn draw_help_modal<B: Backend>(f: &mut Frame<B>, tui_state: &TuiState, app: &mut App) {
+    let block = Block::default().title("Help").borders(Borders::ALL);
+    let area = centered_rect(60, 20, f.size());
+    // add text to the area
+    let text = vec![
+        Spans::from("Press 'q' to quit"),
+        Spans::from("Press 'h' to toggle this help menu"),
+    ];
+    let paragraph = Paragraph::new(text.clone()).block(block);
+    f.render_widget(Clear, area); //this clears out the background
+    f.render_widget(paragraph, area);
 }

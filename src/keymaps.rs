@@ -25,26 +25,51 @@ pub fn handle_key_event(key: event::KeyEvent, tui_state: &mut ui::TuiState, app:
                 return;
             }
             event::KeyCode::Left if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.0 += 1.; 
+                tui_state.galaxy_view.origin_pan.0 += 10.;
             }
             event::KeyCode::Right if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.0 -= 1.;
+                tui_state.galaxy_view.origin_pan.0 -= 10.;
             }
             event::KeyCode::Up if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.1 -= 1.;
+                tui_state.galaxy_view.origin_pan.1 -= 10.;
             }
             event::KeyCode::Down if tui_state.active_view == ui::View::Galaxy => {
-                tui_state.galaxy_view.origin.1 += 1.;
+                tui_state.galaxy_view.origin_pan.1 += 10.;
             }
             event::KeyCode::Char('i') if tui_state.active_view == ui::View::Galaxy => {
+                let old_scale = tui_state.galaxy_view.scale;
                 tui_state.galaxy_view.scale = (tui_state.galaxy_view.scale + 0.25).clamp(1., 4.);
-                tui_state.galaxy_view.origin.0 -= 1.;
-                tui_state.galaxy_view.origin.1 -= 1.;
+                let old_center = (
+                    tui_state.frame_size.0 as f64 / 2.,
+                    tui_state.frame_size.1 as f64 / 2.,
+                );
+                let new_center = (
+                    (tui_state.frame_size.0 as f64 * tui_state.galaxy_view.scale) / 2.,
+                    (tui_state.frame_size.1 as f64 * tui_state.galaxy_view.scale) / 2.,
+                );
+                if old_scale != 4. {
+                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0);
+                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1);
+                }
             }
             event::KeyCode::Char('o') if tui_state.active_view == ui::View::Galaxy => {
+                let old_scale = tui_state.galaxy_view.scale;
                 tui_state.galaxy_view.scale = (tui_state.galaxy_view.scale - 0.25).clamp(1., 4.);
-                tui_state.galaxy_view.origin.0 += 0.25;
-                tui_state.galaxy_view.origin.1 += 0.25;
+                let old_center = (
+                    tui_state.frame_size.0 as f64 / 2.,
+                    tui_state.frame_size.1 as f64 / 2.,
+                );
+                let new_center = (
+                    (tui_state.frame_size.0 as f64 * tui_state.galaxy_view.scale) / 2.,
+                    (tui_state.frame_size.1 as f64 * tui_state.galaxy_view.scale) / 2.,
+                );
+                if old_scale != 1. {
+                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0);
+                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1);
+                } else {
+                    tui_state.galaxy_view.origin.0 = 0. + tui_state.galaxy_view.origin_pan.0;
+                    tui_state.galaxy_view.origin.1 = 0. + tui_state.galaxy_view.origin_pan.1;
+                }
             }
             _ => {}
         },

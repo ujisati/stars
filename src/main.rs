@@ -122,7 +122,7 @@ fn loop_game<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result
     loop {
         log::info!("drawing ui");
 
-        terminal.draw(|f| ui::ui(f, &tui_state, &mut app))?;
+        terminal.draw(|f| ui::ui(f, &mut tui_state, &mut app))?;
         log::info!("reading input");
         if let Event::Key(key) = event::read()? {
             if key.code == KeyCode::Char('q') {
