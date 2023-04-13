@@ -166,14 +166,15 @@ fn draw_galaxy_view<B: Backend>(f: &mut Frame<B>, tui_state: &mut TuiState, app:
     let mut points = vec![];
     let origin = tui_state.galaxy_view.origin;
     let scale = tui_state.galaxy_view.scale;
+    let pan = tui_state.galaxy_view.origin_pan;
     for (_, loc) in galactic_obj_query.iter(&app.world) {
         // Add linear interpolation to scale x, y (world coords + ui offset)
         // from range [a,b] (the grid) to range [c,d] (the canvas)
         let x = (loc.x as f64 + loc.ui_offset.0 as f64);
         let y = (loc.y as f64 + loc.ui_offset.1 as f64);
         let (a, b) = (0., config.galaxy_dimension as f64 - 1.);
-        let (cx, dx) = (origin.0 , (frame_size.width as f64 * scale) + origin.0);
-        let (cy, dy) = (origin.1, (frame_size.height as f64 * scale) + origin.1);
+        let (cx, dx) = (origin.0 + pan.0, (frame_size.width as f64 * scale) + origin.0 + pan.0);
+        let (cy, dy) = (origin.1 + pan.1, (frame_size.height as f64 * scale) + origin.1 + pan.1);
         let f_of_x = |p: f64| ((p - a) * ((dx - cx) / (b - a))) + cx;
         let f_of_y = |p: f64| ((p - a) * ((dy - cy) / (b - a))) + cy;
         let canvas_point = (f_of_x(x), f_of_y(y));

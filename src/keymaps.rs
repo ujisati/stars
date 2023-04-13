@@ -48,8 +48,8 @@ pub fn handle_key_event(key: event::KeyEvent, tui_state: &mut ui::TuiState, app:
                     (tui_state.frame_size.1 as f64 * tui_state.galaxy_view.scale) / 2.,
                 );
                 if old_scale != 4. {
-                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0);
-                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1);
+                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0) + tui_state.galaxy_view.origin_pan.0;
+                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1) + tui_state.galaxy_view.origin_pan.1;
                 }
             }
             event::KeyCode::Char('o') if tui_state.active_view == ui::View::Galaxy => {
@@ -64,8 +64,8 @@ pub fn handle_key_event(key: event::KeyEvent, tui_state: &mut ui::TuiState, app:
                     (tui_state.frame_size.1 as f64 * tui_state.galaxy_view.scale) / 2.,
                 );
                 if old_scale != 1. {
-                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0);
-                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1);
+                    tui_state.galaxy_view.origin.0 = -(new_center.0 - old_center.0) + tui_state.galaxy_view.origin_pan.0;
+                    tui_state.galaxy_view.origin.1 = -(new_center.1 - old_center.1) + tui_state.galaxy_view.origin_pan.1;
                 } else {
                     tui_state.galaxy_view.origin.0 = 0. + tui_state.galaxy_view.origin_pan.0;
                     tui_state.galaxy_view.origin.1 = 0. + tui_state.galaxy_view.origin_pan.1;
