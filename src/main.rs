@@ -117,6 +117,10 @@ fn loop_game<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result
 
     log::info!("initializing ui");
     let mut tui_state = ui::TuiState::new(&mut app);
+    terminal.draw(|f| {
+        tui_state.galaxy_view.camera.frame_size = (f.size().width as f64, f.size().height as f64);
+        tui_state.galaxy_view.camera.update();
+    })?;
 
     log::info!("beginning game loop");
     loop {
@@ -138,7 +142,11 @@ fn loop_game<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result
     }
 }
 
-fn spawn_galaxy(mut commands: Commands, config: Res<Config>, mut name_generator: ResMut<NameGenerator>) {
+fn spawn_galaxy(
+    mut commands: Commands,
+    config: Res<Config>,
+    mut name_generator: ResMut<NameGenerator>,
+) {
     // TODO: add randomness and pre-made patterns
     let mut rng = thread_rng();
     let mut star_count = 0;
@@ -153,7 +161,7 @@ fn spawn_galaxy(mut commands: Commands, config: Res<Config>, mut name_generator:
 
         // get ui offset
         let choices = [0.25, 0.5, 1.];
-        let weights = [3,2,1];
+        let weights = [3, 2, 1];
         let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
         let is_negative = if rng.gen_bool(0.5) { -1.0 } else { 1.0 };
 
